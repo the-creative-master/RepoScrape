@@ -1,0 +1,1719 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>RepoScrape · Release</title>
+<style>
+:root{
+  --bg:#0a0d14; --bg2:#0e131c; --panel:#121826; --panel2:#161d2b; --line:rgba(255,255,255,.075);
+  --line2:rgba(255,255,255,.13); --txt:#eef2f9; --txt2:#a8b3c7; --txt3:#6d7a90;
+  --acc:#5b8cff; --acc2:#8b5cf6; --ok:#35d07f; --warn:#ffb545; --bad:#ff5f5f;
+  --r:16px; --r2:12px;
+  --font:system-ui,-apple-system,"Segoe UI",Roboto,Inter,Arial,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+body{background:
+   radial-gradient(900px 500px at 15% -8%,rgba(91,140,255,.16),transparent 65%),
+   radial-gradient(700px 420px at 92% 4%,rgba(139,92,246,.13),transparent 62%),
+   var(--bg);
+  color:var(--txt);font-family:var(--font);font-size:15px;line-height:1.55;
+  min-height:100vh;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{margin:0;letter-spacing:-.022em;line-height:1.2}
+p{margin:0}
+code,.mono{font-family:var(--mono);font-size:.92em}
+.hide{display:none !important}
+
+/* ---------------- splash ---------------- */
+#splash{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
+  background:radial-gradient(700px 420px at 50% 42%,rgba(91,140,255,.18),transparent 70%),var(--bg);
+  transition:opacity .5s ease,visibility .5s}
+#splash.gone{opacity:0;visibility:hidden;pointer-events:none}
+.sp-mark{position:relative;width:112px;height:112px;display:grid;place-items:center}
+.sp-mark::before,.sp-mark::after{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid rgba(91,140,255,.45);animation:ring 2.1s ease-out infinite}
+.sp-mark::after{animation-delay:.75s}
+@keyframes ring{0%{transform:scale(.62);opacity:.9}100%{transform:scale(1.5);opacity:0}}
+.sp-logo{width:76px;height:76px;border-radius:22px;display:grid;place-items:center;
+  background:linear-gradient(145deg,#5b8cff,#8b5cf6);box-shadow:0 18px 46px -12px rgba(91,140,255,.75);
+  animation:bob 2.4s ease-in-out infinite}
+@keyframes bob{0%,100%{transform:translateY(-4px)}50%{transform:translateY(4px)}}
+.sp-name{font-size:30px;font-weight:800;letter-spacing:-.03em}
+.sp-name i{font-style:normal;background:linear-gradient(90deg,#7aa2ff,#b18cff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.sp-sub{color:var(--txt3);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;text-align:center}
+.sp-bar{width:min(260px,60vw);height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
+.sp-bar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#5b8cff,#8b5cf6);
+  animation:fill 1.5s cubic-bezier(.5,.05,.3,1) forwards}
+@keyframes fill{to{width:100%}}
+.sp-tick{color:var(--txt3);font:500 11.5px var(--mono);height:14px}
+
+/* ---------------- shell ---------------- */
+.app{max-width:1180px;margin:0 auto;padding:0 18px 132px}
+.topbar{position:sticky;top:0;z-index:30;backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  background:rgba(10,13,20,.82);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1180px;margin:0 auto;padding:11px 18px;display:flex;align-items:center;gap:11px}
+.logo{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;flex:0 0 auto;
+  background:linear-gradient(145deg,#5b8cff,#8b5cf6);box-shadow:0 8px 22px -8px rgba(91,140,255,.8)}
+.brand{font-size:16px;font-weight:750;letter-spacing:-.02em;white-space:nowrap}
+.brand b{font-weight:750}
+.top-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.pill{border:1px solid var(--line2);background:rgba(255,255,255,.045);color:var(--txt2);
+  border-radius:999px;padding:6px 11px;font-size:12px;font-weight:620;display:inline-flex;align-items:center;gap:6px;
+  cursor:pointer;font-family:inherit;transition:.16s}
+.pill:hover{background:rgba(255,255,255,.09);color:var(--txt)}
+.pill .dot{width:7px;height:7px;border-radius:50%;background:var(--txt3)}
+.pill.on{color:#bff0d5;border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.12)}
+.pill.on .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+
+/* ---------------- stepper ---------------- */
+.rail{display:flex;align-items:center;gap:0;margin:18px 0 20px;overflow-x:auto;scrollbar-width:none;padding:2px}
+.rail::-webkit-scrollbar{display:none}
+.rail .seg{flex:1 0 auto;display:flex;align-items:center;min-width:0}
+.rail .node{display:flex;align-items:center;gap:8px;background:none;border:0;font-family:inherit;color:var(--txt3);
+  font-size:12.5px;font-weight:650;cursor:pointer;padding:0;white-space:nowrap;transition:.18s}
+.rail .num{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;flex:0 0 auto;
+  border:1px solid var(--line2);background:var(--panel);font-size:12px;font-weight:700;transition:.18s}
+.rail .node.done .num{background:rgba(53,208,127,.15);border-color:rgba(53,208,127,.5);color:var(--ok)}
+.rail .node.now .num{background:linear-gradient(145deg,#5b8cff,#8b5cf6);border-color:transparent;color:#fff;
+  box-shadow:0 6px 18px -6px rgba(91,140,255,.9)}
+.rail .node.now{color:var(--txt)}
+.rail .bar{flex:1 1 auto;height:1px;background:var(--line2);margin:0 9px;min-width:10px}
+.rail .node.done + .bar{background:rgba(53,208,127,.45)}
+@media (max-width:820px){ .rail .tl{display:none} .rail .node.now .tl{display:inline} }
+
+/* ---------------- cards & layout ---------------- */
+.card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.card + .card{margin-top:14px}
+h2.step{font-size:23px;letter-spacing:-.03em;margin-bottom:5px}
+p.lead{color:var(--txt2);font-size:14px;margin-bottom:18px;max-width:70ch}
+.sect{font-size:11.5px;font-weight:750;letter-spacing:.13em;text-transform:uppercase;color:var(--txt3);margin:22px 0 10px}
+.sect:first-child{margin-top:0}
+.hint{color:var(--txt3);font-size:12.5px;line-height:1.5}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+@media (max-width:700px){ .g2,.g3{grid-template-columns:1fr} }
+hr.sep{border:0;border-top:1px solid var(--line);margin:20px 0}
+
+/* ---------------- inputs ---------------- */
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field > label{font-size:12.5px;font-weight:650;color:var(--txt2)}
+input[type=text],input[type=password],input[type=number],input[type=search],select,textarea{
+  width:100%;background:var(--bg2);border:1px solid var(--line2);color:var(--txt);border-radius:11px;
+  padding:11px 13px;font-family:inherit;font-size:14px;outline:none;transition:.16s}
+input:focus,select:focus,textarea:focus{border-color:rgba(91,140,255,.75);box-shadow:0 0 0 3px rgba(91,140,255,.15)}
+select{appearance:none;-webkit-appearance:none;padding-right:34px;
+  background-image:linear-gradient(45deg,transparent 50%,var(--txt2) 50%),linear-gradient(135deg,var(--txt2) 50%,transparent 50%);
+  background-position:calc(100% - 18px) 50%,calc(100% - 13px) 50%;background-size:5px 5px,5px 5px;background-repeat:no-repeat}
+textarea{min-height:78px;resize:vertical}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid var(--line2);
+  background:rgba(255,255,255,.055);color:var(--txt);border-radius:11px;padding:11px 16px;font-family:inherit;
+  font-size:14px;font-weight:650;cursor:pointer;transition:.16s;white-space:nowrap}
+.btn:hover{background:rgba(255,255,255,.1)}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:linear-gradient(145deg,#5b8cff,#7b6bf6);border-color:transparent;color:#fff;
+  box-shadow:0 12px 26px -12px rgba(91,140,255,.85)}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn.ghost{background:transparent}
+.btn.danger{border-color:rgba(255,95,95,.45);color:#ffc9c9;background:rgba(255,95,95,.12)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+
+/* ---------------- chips / choices ---------------- */
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.chip{border:1px solid var(--line2);background:rgba(255,255,255,.04);border-radius:999px;padding:7px 13px;
+  font-size:13px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:inherit;transition:.15s}
+.chip:hover{background:rgba(255,255,255,.09);color:var(--txt)}
+.chip[aria-pressed=true]{background:linear-gradient(145deg,rgba(91,140,255,.28),rgba(139,92,246,.22));
+  border-color:rgba(91,140,255,.7);color:#fff}
+.chip.mini{padding:5px 11px;font-size:12px}
+.qchip{display:inline-flex;align-items:center;gap:8px;border:1px solid rgba(91,140,255,.4);
+  background:rgba(91,140,255,.13);border-radius:999px;padding:7px 8px 7px 13px;font-size:13px;font-weight:620;color:#dbe6ff}
+.qchip button{background:rgba(255,255,255,.12);border:0;color:#cfe0ff;width:19px;height:19px;border-radius:50%;
+  cursor:pointer;font-size:12px;line-height:1;display:grid;place-items:center;font-family:inherit}
+.qchip button:hover{background:rgba(255,95,95,.7);color:#fff}
+
+/* ---------------- option cards (OS / power / format) ---------------- */
+.opts{display:grid;gap:9px;grid-template-columns:repeat(auto-fill,minmax(184px,1fr))}
+.opt{position:relative;text-align:left;border:1px solid var(--line2);background:rgba(255,255,255,.032);
+  border-radius:var(--r2);padding:12px 13px;cursor:pointer;font-family:inherit;color:var(--txt);transition:.15s}
+.opt:hover{border-color:rgba(255,255,255,.25);background:rgba(255,255,255,.06)}
+.opt[aria-pressed=true]{border-color:rgba(91,140,255,.85);background:linear-gradient(180deg,rgba(91,140,255,.2),rgba(91,140,255,.07));
+  box-shadow:0 0 0 3px rgba(91,140,255,.13)}
+.opt[aria-pressed=true]::after{content:"";position:absolute;top:9px;right:9px;width:13px;height:13px;border-radius:50%;
+  background:var(--acc);box-shadow:inset 0 0 0 3px rgba(10,13,20,.92)}
+.opt .t{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
+.opt .s{font-size:11.5px;color:var(--txt3);margin-top:3px;line-height:1.4}
+
+/* ---------------- misc blocks ---------------- */
+.note{border-radius:var(--r2);padding:13px 15px;font-size:13px;line-height:1.55;border:1px solid var(--line2);
+  background:rgba(255,255,255,.035);color:var(--txt2)}
+.note.warn{border-color:rgba(255,181,69,.4);background:rgba(255,181,69,.1);color:#ffe0b0}
+.note.bad{border-color:rgba(255,95,95,.4);background:rgba(255,95,95,.1);color:#ffd5d5}
+.note.ok{border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.1);color:#c8f5dd}
+.note b{color:#fff}
+.advice{margin-top:14px;border-left:2px solid rgba(91,140,255,.6);padding-left:14px}
+.advice ol{margin:8px 0 0;padding-left:20px;color:var(--txt2);font-size:13px;line-height:1.6}
+.advice ol li{margin-bottom:5px}
+.advice code{background:rgba(255,255,255,.08);padding:1px 5px;border-radius:5px}
+
+/* stats */
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media (max-width:640px){ .stats{grid-template-columns:repeat(2,1fr)} }
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:var(--r2);padding:12px 13px}
+.stat .k{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--txt3);font-weight:700}
+.stat .v{font-size:21px;font-weight:750;letter-spacing:-.02em;margin-top:3px;font-variant-numeric:tabular-nums}
+.stat .v small{font-size:12px;color:var(--txt3);font-weight:600;margin-left:2px}
+
+/* progress */
+.prog{height:8px;border-radius:8px;background:rgba(255,255,255,.08);overflow:hidden}
+.prog i{display:block;height:100%;width:0;background:linear-gradient(90deg,#5b8cff,#8b5cf6);transition:width .3s}
+.now{font-family:var(--mono);font-size:12px;color:var(--txt2);margin-top:9px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+/* log */
+.log{background:#080b11;border:1px solid var(--line);border-radius:var(--r2);padding:10px 12px;height:230px;
+  overflow-y:auto;font-family:var(--mono);font-size:11.5px;line-height:1.65;color:var(--txt2);overscroll-behavior:contain}
+.log .l{display:flex;gap:8px}
+.log .tm{color:var(--txt3);flex:0 0 auto}
+.log .ok{color:#8ee6b4}.log .er{color:#ff9b9b}.log .dim{color:var(--txt3)}.log .acc{color:#a9c1ff}
+
+/* repo list */
+.repolist{max-height:340px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r2);background:var(--bg2);overscroll-behavior:contain}
+.repo{display:flex;gap:11px;align-items:flex-start;padding:11px 13px;border-bottom:1px solid var(--line);cursor:pointer}
+.repo:last-child{border-bottom:0}
+.repo:hover{background:rgba(255,255,255,.03)}
+.repo input{margin-top:3px;width:17px;height:17px;accent-color:var(--acc);flex:0 0 auto}
+.repo .rn{font-size:13.5px;font-weight:650;word-break:break-word}
+.repo .rm{font-size:11.5px;color:var(--txt3);font-variant-numeric:tabular-nums}
+
+/* format cards */
+.fmt-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.fmt{text-align:left;border:1px solid var(--line2);background:rgba(255,255,255,.03);border-radius:var(--r2);
+  padding:13px;cursor:pointer;font-family:inherit;color:var(--txt);position:relative;transition:.15s}
+.fmt:hover{background:rgba(255,255,255,.06)}
+.fmt[aria-pressed=true]{border-color:rgba(91,140,255,.85);background:linear-gradient(180deg,rgba(91,140,255,.18),rgba(91,140,255,.06));
+  box-shadow:0 0 0 3px rgba(91,140,255,.12)}
+.fmt .fn{font:700 15px var(--mono);letter-spacing:-.01em}
+.fmt .fd{font-size:12px;color:var(--txt2);margin-top:5px;line-height:1.45}
+.fmt .fp,.fmt .fc{margin-top:7px;font-size:11.5px;line-height:1.45}
+.fmt .fp b{color:var(--ok);font-weight:700}
+.fmt .fc b{color:var(--warn);font-weight:700}
+
+/* footer nav */
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:40;border-top:1px solid var(--line);
+  background:rgba(10,13,20,.9);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);
+  padding:11px 18px calc(11px + env(safe-area-inset-bottom,0px))}
+.nav-in{max-width:1180px;margin:0 auto;display:flex;align-items:center;gap:10px}
+.nav .grow{flex:1;min-width:0}
+.nav .where{font-size:12px;color:var(--txt3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.nav .where b{color:var(--txt2)}
+@media (max-width:520px){ .nav .where{display:none} .nav .btn{flex:1} .nav-in{gap:8px} }
+
+/* toast */
+#toasts{position:fixed;left:50%;transform:translateX(-50%);bottom:86px;z-index:60;display:flex;flex-direction:column;gap:8px;
+  align-items:center;pointer-events:none;width:max-content;max-width:92vw}
+.toast{background:#1b2334;border:1px solid var(--line2);border-radius:11px;padding:10px 15px;font-size:13px;
+  color:var(--txt);box-shadow:0 16px 34px -14px rgba(0,0,0,.9);animation:tin .3s ease}
+.toast.ok{border-color:rgba(53,208,127,.5)}.toast.bad{border-color:rgba(255,95,95,.5)}
+@keyframes tin{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* spinner */
+.spin{width:13px;height:13px;border-radius:50%;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;
+  animation:sp .7s linear infinite;display:inline-block}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+@media (max-width:560px){
+  /* topbar + rail must stay on one line each */
+  #buildPill{display:none}
+  .pill{padding:5px 10px;font-size:11.5px;white-space:nowrap}
+  .rail .tl{display:none !important}
+  .rail .seg{flex:1 1 0;min-width:0}
+  .rail .num{width:23px;height:23px;font-size:11px}
+  .rail .bar{margin:0 4px;min-width:4px}
+  .nav .btn{padding:10px 14px}
+}
+@media (max-width:640px){
+  .app{padding:0 12px 132px}
+  .topbar-in{padding:10px 12px}
+  .brand{font-size:14.5px}
+  .card{padding:16px;border-radius:14px}
+  h2.step{font-size:20px}
+  .opts{grid-template-columns:1fr 1fr;gap:8px}
+  .opt{padding:10px 11px}
+  .opt .t{font-size:12.5px}
+  .opt .s{font-size:10.5px}
+  .fmt-cards{grid-template-columns:1fr}
+  .rail{margin:13px 0 16px}
+}
+</style>
+</head>
+<body>
+
+<!-- ================= splash ================= -->
+<div id="splash">
+  <div class="sp-mark">
+    <div class="sp-logo">
+      <svg width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>
+      </svg>
+    </div>
+  </div>
+  <div style="text-align:center">
+    <div class="sp-name">Repo<b style="color:#fff">Scrape</b> <i>Release</i></div>
+    <div class="sp-sub">bulk github scraper · one file · no install</div>
+  </div>
+  <div class="sp-bar"><i></i></div>
+  <div class="sp-tick" id="spTick">starting…</div>
+</div>
+
+<!-- ================= shell ================= -->
+<div class="app hide" id="app">
+  <div class="topbar">
+    <div class="topbar-in">
+      <div class="logo">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>
+        </svg>
+      </div>
+      <div class="brand">RepoScrape</div>
+      <div class="top-right">
+        <span class="pill" id="buildPill" title="Build">release</span>
+        <button class="pill" id="wakeBtn" type="button"><span class="dot"></span><span id="wakeTxt">Wake lock</span></button>
+      </div>
+    </div>
+  </div>
+
+  <div class="rail" id="rail"></div>
+  <div id="bootErr" class="note bad hide" style="margin-bottom:14px"></div>
+
+  <!-- ---------- STEP 1 : DEVICE ---------- -->
+  <section class="stepbox" data-step="1">
+    <h2 class="step">Where are you scraping?</h2>
+    <p class="lead">Pick your system — that is the only thing this asks. Battery rules differ wildly between Android skins, and getting them wrong is what silently kills a long scrape.</p>
+    <div class="field" style="margin-bottom:12px">
+      <label for="osFilter">Find your system</label>
+      <input id="osFilter" type="search" placeholder="harmony · magic · one ui · hyper · windows · pixel …" autocomplete="off">
+    </div>
+    <div class="opts" id="osOpts"></div>
+    <div class="sect">And how is it powered?</div>
+    <div class="opts" id="powOpts">
+      <button class="opt" type="button" data-pow="mains"><div class="t">Plugged in</div><div class="s">Desktop, or a laptop on the charger</div></button>
+      <button class="opt" type="button" data-pow="battery"><div class="t">Laptop battery</div><div class="s">Lid open, running on cells</div></button>
+      <button class="opt" type="button" data-pow="mobile"><div class="t">Phone / tablet battery</div><div class="s">Aggressive power saving applies</div></button>
+    </div>
+    <div id="adviceBox" style="margin-top:16px"></div>
+  </section>
+
+  <!-- ---------- STEP 2 : QUERIES ---------- -->
+  <section class="stepbox hide" data-step="2">
+    <h2 class="step">Search queries</h2>
+    <p class="lead">Type anything — <code>games</code>, <code>topic:games</code>, <code>language:python stars:&gt;50</code> — and press Add. That is the whole feature.</p>
+    <div class="row" style="gap:9px">
+      <input id="qInput" type="text" placeholder="topic:games" style="flex:1;min-width:180px" autocomplete="off">
+      <button class="btn primary" id="qAdd" type="button">Add</button>
+    </div>
+    <div id="qList" class="chips" style="margin-top:14px"></div>
+    <div class="hint" id="qEmpty" style="margin-top:12px">Nothing added yet. Anything you type is a plain GitHub search string; combine words to narrow it.</div>
+    <div class="sect">Quick add</div>
+    <div class="chips" id="qSuggest"></div>
+    <div class="note" style="margin-top:18px">
+      <b>How it is used:</b> each query is paged through the repository search API, so <code>topic:games</code> with 5 pages means up to 500 repos considered. The API caps any single query at 1,000 results, which is why several narrow queries beat one broad one.
+    </div>
+  </section>
+
+  <!-- ---------- STEP 3 : TOKEN + SEARCH ---------- -->
+  <section class="stepbox hide" data-step="3">
+    <h2 class="step">Token &amp; search</h2>
+    <p class="lead">A personal access token is optional but changes everything: 5,000 requests an hour instead of 60.</p>
+    <div class="field">
+      <label for="pat">GitHub token (classic, no scopes needed)</label>
+      <div class="row" style="gap:8px">
+        <input id="pat" type="password" placeholder="ghp_…" style="flex:1;min-width:180px" autocomplete="off" spellcheck="false">
+        <button class="btn" id="patCheck" type="button">Check</button>
+      </div>
+      <div class="hint" id="patState">Stored only in this tab's localStorage, sent only to api.github.com.</div>
+    </div>
+    <div class="g3" style="margin-top:16px">
+      <div class="field"><label for="maxPages">Max pages per query</label>
+        <input id="maxPages" type="number" min="1" max="10" step="1" value="5">
+        <div class="hint">1 page = 100 repos. 10 = the 1,000 result cap.</div></div>
+      <div class="field"><label for="sortSel">Sort results by</label>
+        <select id="sortSel">
+          <option value="best">Best match</option>
+          <option value="stars">Stars</option>
+          <option value="updated">Recently updated</option>
+        </select>
+        <div class="hint">Stars favours big projects, best match favours your wording.</div></div>
+      <div class="field"><label for="maxRepos">Stop after this many repos</label>
+        <input id="maxRepos" type="number" min="1" step="10" value="300">
+        <div class="hint">Total across every query, before scraping starts.</div></div>
+    </div>
+    <div class="sect">Include</div>
+    <div class="chips">
+      <button class="chip" id="forksChip" type="button" aria-pressed="false">Forks</button>
+      <button class="chip" id="archChip" type="button" aria-pressed="false">Archived repos</button>
+    </div>
+    <div class="note" style="margin-top:18px"><b>Rate limits:</b> anonymous searching dies after about 10 queries. With a token you get 30 searches a minute and 5,000 requests an hour, which is enough for tens of thousands of file downloads.</div>
+  </section>
+
+  <!-- ---------- STEP 4 : FILE / ARCHIVE ---------- -->
+  <section class="stepbox hide" data-step="4">
+    <h2 class="step">Files &amp; archives</h2>
+    <p class="lead">Everything is built in this tab and handed to you as a download. Choose the container, then set the two limits that decide when it splits or stops.</p>
+    <div class="fmt-cards" id="fmtCards"></div>
+    <div class="g3" style="margin-top:18px">
+      <div class="field"><label for="partMB">Max size per archive part</label>
+        <input id="partMB" type="number" min="0" step="10" value="40">
+        <div class="hint">MB. When a part fills, it downloads and a new one starts. 0 = one giant file.</div></div>
+      <div class="field"><label for="maxParts">Max parts</label>
+        <input id="maxParts" type="number" min="1" step="1" value="6">
+        <div class="hint">Downloading stops after this many archives.</div></div>
+      <div class="field"><label for="stopGB">Stop scraping at</label>
+        <input id="stopGB" type="number" min="0" step="0.5" value="2">
+        <div class="hint">GB of raw files collected. Then it stops and moves to download. 0 = never.</div></div>
+    </div>
+    <div class="note" style="margin-top:18px" id="fmtNote"></div>
+  </section>
+
+  <!-- ---------- STEP 5 : SCRAPE FILTERS ---------- -->
+  <section class="stepbox hide" data-step="5">
+    <h2 class="step">What to scrape</h2>
+    <p class="lead">Filters are applied while walking each repository's file tree, before anything is downloaded. Tighter filters mean a smaller, faster run.</p>
+    <div class="sect">File types</div>
+    <div class="chips" id="presets"></div>
+    <div class="chips" id="extChips" style="margin-top:10px"></div>
+    <div class="field" style="margin-top:12px">
+      <label for="extCustom">Extra extensions</label>
+      <input id="extCustom" type="text" placeholder="glsl, frag, lua" spellcheck="false">
+      <div class="hint">Comma separated, no dots. Added on top of the chips above.</div>
+    </div>
+    <div class="sect">Rules</div>
+    <div class="chips">
+      <button class="chip" id="dupChip" type="button" aria-pressed="false">Allow duplicate files</button>
+      <button class="chip" id="extChip" type="button" aria-pressed="true">Allow files that need external assets</button>
+      <button class="chip" id="blankChip" type="button" aria-pressed="true">Skip blank files</button>
+    </div>
+    <div class="g3" style="margin-top:16px">
+      <div class="field"><label for="minKB">Min file size (KB)</label><input id="minKB" type="number" min="0" step="1" value="0"><div class="hint">0 = no minimum.</div></div>
+      <div class="field"><label for="maxKB">Max file size (KB)</label><input id="maxKB" type="number" min="0" step="10" value="4096"><div class="hint">Big binaries are skipped rather than fetched.</div></div>
+      <div class="field"><label for="maxFilesRepo">Max files per repo</label><input id="maxFilesRepo" type="number" min="1" step="10" value="400"><div class="hint">Keeps one huge monorepo from eating the run.</div></div>
+    </div>
+    <div class="field" style="margin-top:14px">
+      <label for="excludeDirs">Skip these folders</label>
+      <input id="excludeDirs" type="text" value="node_modules,.git,dist,build,vendor,target,.next" spellcheck="false">
+    </div>
+    <div class="note" style="margin-top:16px" id="filterNote"></div>
+  </section>
+
+  <!-- ---------- STEP 6 : SEARCH ---------- -->
+  <section class="stepbox hide" data-step="6">
+    <h2 class="step">Find repos</h2>
+    <p class="lead">This runs your queries and lists what came back. Untick anything you do not want before scraping.</p>
+    <div class="row">
+      <button class="btn primary" id="btnSearch" type="button">Search GitHub</button>
+      <button class="btn ghost" id="btnDemoSearch" type="button">Load demo repos (offline)</button>
+      <span class="hint" id="searchState"></span>
+    </div>
+    <div class="row" style="margin-top:14px;justify-content:space-between">
+      <div class="row" style="gap:8px">
+        <button class="btn ghost" id="selAll" type="button" style="padding:7px 12px;font-size:13px">Select all</button>
+        <button class="btn ghost" id="selNone" type="button" style="padding:7px 12px;font-size:13px">Select none</button>
+      </div>
+      <div class="hint" id="repoCount">No repos yet</div>
+    </div>
+    <div class="repolist" id="repoList" style="margin-top:10px">
+      <div style="padding:22px;text-align:center;color:var(--txt3);font-size:13px">Search, then untick what you do not want.</div>
+    </div>
+  </section>
+
+  <!-- ---------- STEP 7 : THE MAGIC ---------- -->
+  <section class="stepbox hide" data-step="7">
+    <h2 class="step">The magic</h2>
+    <p class="lead">Files are fetched, de-duplicated and held in memory. Stop at any time — whatever is collected is still yours to download.</p>
+    <div class="stats">
+      <div class="stat"><div class="k">Files</div><div class="v" id="stFiles">0</div></div>
+      <div class="stat"><div class="k">Collected</div><div class="v" id="stSize">0<small>B</small></div></div>
+      <div class="stat"><div class="k">Repos</div><div class="v" id="stRepos">0</div></div>
+      <div class="stat"><div class="k">Skipped</div><div class="v" id="stSkip">0</div></div>
+    </div>
+    <div style="margin-top:16px">
+      <div class="prog"><i id="bar"></i></div>
+      <div class="now" id="nowLine">idle</div>
+    </div>
+    <div class="log" id="log" style="margin-top:14px"></div>
+    <div class="row" style="margin-top:14px">
+      <button class="btn primary" id="btnRun" type="button">Start scraping</button>
+      <button class="btn danger hide" id="btnStop" type="button">Stop &amp; download</button>
+      <span class="hint" id="runState"></span>
+    </div>
+  </section>
+
+  <!-- ---------- STEP 8 : DOWNLOAD ---------- -->
+  <section class="stepbox hide" data-step="8">
+    <h2 class="step">Download</h2>
+    <p class="lead">Nothing leaves this page until you press the button. Files are packed in the tab, then saved by your browser.</p>
+    <div class="stats">
+      <div class="stat"><div class="k">Files</div><div class="v" id="dlFiles">0</div></div>
+      <div class="stat"><div class="k">Raw size</div><div class="v" id="dlSize">0<small>B</small></div></div>
+      <div class="stat"><div class="k">Repos</div><div class="v" id="dlRepos">0</div></div>
+      <div class="stat"><div class="k">Parts</div><div class="v" id="dlParts">1</div></div>
+    </div>
+    <div class="sect" style="margin-top:20px">Archive format</div>
+    <div class="fmt-cards" id="fmtCards2"></div>
+    <div class="row" style="margin-top:18px">
+      <button class="btn primary" id="btnDownload" type="button">Download archive</button>
+      <span class="hint" id="dlState"></span>
+    </div>
+    <div class="note" style="margin-top:16px" id="dlHelp"></div>
+  </section>
+</div>
+
+<!-- ================= nav ================= -->
+<div class="nav hide" id="nav">
+  <div class="nav-in">
+    <button class="btn ghost" id="btnBack" type="button">Back</button>
+    <div class="grow"><div class="where" id="where"></div></div>
+    <button class="btn primary" id="btnNext" type="button">Next</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+const BUILD = 'Release 1.0';
+const $ = (s, r) => (r || document).querySelector(s);
+const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+function fmtNum(n) { return Number(n || 0).toLocaleString(); }
+const BYTES = ['B', 'KB', 'MB', 'GB', 'TB'];
+function fmtBytes(n) {
+  n = Number(n || 0);
+  if (n < 1024) return n + ' B';
+  let i = 0;
+  while (n >= 1024 && i < BYTES.length - 1) { n /= 1024; i++; }
+  return (n >= 100 ? n.toFixed(0) : n.toFixed(n >= 10 ? 1 : 2)) + ' ' + BYTES[i];
+}
+function fmtDur(ms) {
+  const s = Math.max(0, Math.round(ms / 1000));
+  const m = Math.floor(s / 60), h = Math.floor(m / 60);
+  if (h) return h + 'h ' + (m % 60) + 'm';
+  if (m) return m + 'm ' + (s % 60) + 's';
+  return s + 's';
+}
+
+/* ---------------- toasts ---------------- */
+function toast(msg, kind) {
+  const host = $('#toasts');
+  if (!host) return;
+  const t = document.createElement('div');
+  t.className = 'toast' + (kind ? ' ' + kind : '');
+  t.textContent = msg;
+  host.appendChild(t);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, 2600);
+}
+
+/* ---------------- device catalogue ----------------
+   Battery advice is per real OEM skin: Android's own rule ("unrestricted") is
+   not enough on Chinese skins, which each add their own autostart layer.        */
+const OS_LIST = [
+  { id: 'windows', name: 'Windows 10 / 11', sub: 'PC or laptop', fam: 'Desktop', advice: [
+    'Settings → System → Power &amp; battery → <b>Power mode: Best performance</b>.',
+    'Screen and sleep → set <b>Screen and sleep: Never</b> while plugged in.',
+    'In Edge: <code>edge://settings/system</code> → turn off <b>Sleeping tabs</b> and <b>Efficiency mode</b>.',
+    'Keep the tab in a window that is not minimised — Windows throttles hidden Chromium tabs.' ] },
+  { id: 'macos', name: 'macOS 13+', sub: 'Apple desktop / laptop', fam: 'Desktop', advice: [
+    'System Settings → Battery → Options → <b>Prevent automatic sleeping when the display is off</b> (on power adapter).',
+    'System Settings → Lock Screen → <b>Turn display off: Never</b> for the duration of the run.',
+    'Terminal: <code>caffeinate -dimsu</code> keeps the machine awake with no clicks.',
+    'Safari and Chrome both freeze background tabs — leave the tab visible.' ] },
+  { id: 'linux', name: 'Linux', sub: 'Ubuntu, Fedora, Arch…', fam: 'Desktop', advice: [
+    'Power settings → <b>Blank screen: Never</b> and disable automatic suspend.',
+    'Or hold it awake: <code>systemd-inhibit --what=idle:sleep sleep infinity</code>.',
+    'Chromium may discard background tabs under memory pressure — one window, one tab is safest.' ] },
+  { id: 'chromeos', name: 'ChromeOS', sub: 'Chromebook', fam: 'Desktop', advice: [
+    'Settings → Device → Power → <b>Keep the display on while charging</b> (or set sleep to Never).',
+    'ChromeOS suspends the whole machine on lid close — keep it open.',
+    'ChromeOS is gentle with the focused tab; background tabs still get frozen after a while.' ] },
+  { id: 'steamos', name: 'SteamOS', sub: 'Steam Deck, desktop mode', fam: 'Desktop', advice: [
+    'Desktop mode → Power Management → disable display dimming and suspend.',
+    'Hold the tab focused; game mode suspends everything.',
+    'Needs a keyboard/mouse or a browser installed in desktop mode.' ] },
+  { id: 'android', name: 'Stock Android', sub: 'Pixel, AOSP, Motorola', fam: 'Android', advice: [
+    'Settings → Apps → your browser → App battery usage → <b>Unrestricted</b>.',
+    'Turn off <b>Battery Saver</b> for the run (it also blocks wake locks).',
+    'Optional: Settings → Battery → <b>Adaptive Battery</b> off — it freezes apps it thinks you forgot.' ] },
+  { id: 'oneui', name: 'Samsung One UI', sub: 'Galaxy phones &amp; tablets', fam: 'Android', advice: [
+    'Settings → Battery and device care → Battery → <b>Background usage limits</b>.',
+    'Remove your browser from <b>Sleeping apps</b> and <b>Deep sleeping apps</b>, add it to <b>Never sleeping apps</b>.',
+    'Settings → Apps → your browser → Battery → <b>Unrestricted</b>.',
+    'Recents: long-press the browser card → <b>Keep open</b>.' ] },
+  { id: 'hyperos', name: 'Xiaomi HyperOS / MIUI', sub: 'Xiaomi, Redmi, POCO', fam: 'Android', advice: [
+    'Settings → Apps → Manage apps → your browser → <b>Battery saver: No restrictions</b>.',
+    'Same screen → turn <b>Autostart</b> on (HyperOS sometimes hides it under Permissions → Autostart).',
+    'Security app → Boost speed → gear icon → <b>Lock apps</b> → lock the browser.',
+    'Recents: swipe the card down until a padlock appears.' ], warn: 'HyperOS can reset autostart after a reboot — check it before long runs.' },
+  { id: 'coloros', name: 'OPPO / realme ColorOS', sub: 'OPPO, realme, OnePlus (older)', fam: 'Android', advice: [
+    'Settings → Battery → <b>Battery optimisation</b> → All apps → your browser → <b>Don&rsquo;t optimise</b>.',
+    'Settings → Apps → App management → your browser → <b>Auto launch</b> on, and allow background activity.',
+    'Turn off <b>Power saving mode</b>.' ] },
+  { id: 'oxygenos', name: 'OnePlus OxygenOS', sub: 'OnePlus phones', fam: 'Android', advice: [
+    'Settings → Apps → App management → your browser → <b>Auto launch</b> on.',
+    'Settings → Battery → <b>Battery optimisation</b> → your browser → <b>Don&rsquo;t optimise</b>.',
+    'Disable <b>Sleep standby optimisation</b> under Battery → More settings.' ] },
+  { id: 'originos', name: 'vivo OriginOS', sub: 'vivo, iQOO', fam: 'Android', advice: [
+    'Settings → Battery → <b>Background power consumption management</b> → your browser → <b>Allow</b>.',
+    'Settings → Apps → your browser → Permissions → enable <b>High background power activity</b>.',
+    'iQOO: also disable <b>Monster/Game mode</b> throttling for browsers.' ] },
+  { id: 'funtouch', name: 'vivo Funtouch OS', sub: 'Older vivo / iQOO', fam: 'Android', advice: [
+    'Settings → Battery → <b>High background power consumption</b> → allow your browser.',
+    'Settings → More settings → Developer options → Background process limit → <b>Standard limit</b>.',
+    'Turn off <b>Power saving mode</b>.' ] },
+  { id: 'magicos', name: 'Honor MagicOS', sub: 'Honor phones (Magic UI)', fam: 'Android', advice: [
+    'Settings → Battery → <b>App launch</b> → your browser.',
+    'Switch <b>Manage automatically</b> off, then enable <b>Auto-launch</b>, <b>Secondary launch</b> and <b>Run in background</b>.',
+    'Settings → Battery → More battery settings → turn off <b>Power-intensive prompt</b> for the browser.' ] },
+  { id: 'emui', name: 'Huawei EMUI', sub: 'Huawei phones, pre-HarmonyOS', fam: 'Android', advice: [
+    'Settings → Battery → <b>App launch</b> → your browser.',
+    'Disable <b>Manage automatically</b> and enable all three: Auto-launch, Secondary launch, Run in background.',
+    'Battery → <b>Battery optimisation</b> → All apps → your browser → <b>Don&rsquo;t allow</b> optimisation.',
+    'Battery → More battery settings → enable <b>Stay connected when device sleeps</b>.' ] },
+  { id: 'harmonyos', name: 'HarmonyOS 4 &amp; older', sub: 'Huawei, Android-based', fam: 'Android', advice: [
+    'Same as EMUI: Settings → Battery → <b>App launch</b> → Manage automatically off → all three toggles on.',
+    'Battery → <b>Battery optimisation</b> → your browser → don&rsquo;t optimise.',
+    'Recents: swipe the browser card down to <b>lock</b> it in memory.' ] },
+  { id: 'harmonynext', name: 'HarmonyOS NEXT', sub: 'HarmonyOS 5+, no Android layer', fam: 'Android', warn: 'NEXT has no per-app "run in background" switch for browsers — a backgrounded page is suspended, full stop.', advice: [
+    'Settings → Battery → turn off <b>Power saving mode</b>.',
+    'Settings → Display &amp; brightness → <b>Screen timeout</b>: the longest value available.',
+    'Keep the browser in the foreground and the screen unlocked for the whole run.',
+    'Because NEXT suspends background apps hard, prefer short runs with a small part size so each download lands quickly.' ] },
+  { id: 'nothingos', name: 'Nothing OS', sub: 'Nothing Phone', fam: 'Android', advice: [
+    'Nearly stock: Settings → Apps → your browser → Battery → <b>Unrestricted</b>.',
+    'Turn off <b>Battery Saver</b> during the run.',
+    'Glyph/NT features do not affect background apps.' ] },
+  { id: 'xos', name: 'Tecno / Infinix (XOS, HiOS)', sub: 'Transsion phones', fam: 'Android', advice: [
+    'Settings → Apps → your browser → <b>Battery: No restrictions</b>.',
+    'Use the Phone Master / Power Marathon app → <b>App freeze</b> → whitelist the browser.',
+    'Enable <b>Autostart</b> in the same app-management screen.' ] },
+  { id: 'flyme', name: 'Meizu Flyme', sub: 'Meizu phones', fam: 'Android', advice: [
+    'Settings → Battery → <b>Background app management</b> → allow your browser.',
+    'Settings → Apps → your browser → <b>Autostart</b> on.',
+    'Turn off <b>Power saving mode</b>.' ] },
+  { id: 'nubia', name: 'Nubia / RedMagic', sub: 'RedMagic OS', fam: 'Android', advice: [
+    'Settings → Battery → <b>App power management</b> → your browser → allow background activity.',
+    'Turn off <b>Power saving</b>; game-space modes throttle browsers too.' ] },
+  { id: 'custom', name: 'Custom Android (Lineage, Graphene…)', sub: 'AOSP-based ROMs', fam: 'Android', advice: [
+    'Settings → Apps → your browser → Battery → <b>Unrestricted</b>.',
+    'GrapheneOS/CalyxOS behave like stock Android — no extra autostart layer.',
+    'Keep Battery Saver off.' ] },
+  { id: 'ios', name: 'iOS', sub: 'iPhone', fam: 'Apple', advice: [
+    'Settings → Battery → turn <b>Low Power Mode</b> off (it pauses background fetches outright).',
+    'Settings → Display &amp; Brightness → Auto-Lock → <b>Never</b> for the run.',
+    'Keep Safari in the foreground — iOS suspends background tabs almost immediately.' ], warn: 'Safari on iOS drops a background tab within seconds; this is a foreground-only platform.' },
+  { id: 'ipados', name: 'iPadOS', sub: 'iPad', fam: 'Apple', advice: [
+    'Low Power Mode off, Auto-Lock → <b>Never</b>, keep Safari visible.',
+    'Split View with another app can trigger memory eviction — run full screen.' ] },
+  { id: 'other', name: 'Something else', sub: 'Any modern browser', fam: 'Other', advice: [
+    'Any Chromium, Firefox or Safari from the last two years works.',
+    'The universal rules: no battery saver, no sleep, keep the tab focused.' ] }
+];
+
+const POWER = {
+  mains: { name: 'plugged in', advice: 'Mains power removes the single biggest risk: the OS suspending the machine on low battery.' },
+  battery: { name: 'on battery', advice: 'On battery, every OS tightens timers. Expect throttling after ~5 minutes hidden.' },
+  mobile: { name: 'phone/tablet battery', advice: 'Phones are the harshest: Doze and OEM cleaners can kill the tab the moment the screen locks.' }
+};
+
+/* archive formats, with honest pros and cons */
+const FORMATS = [
+  { id: 'zip', name: '.zip', what: 'The universal one. Per-file deflate, directory index at the end.',
+    pros: 'Opens on every OS with no extra software; instant random access to one file.',
+    cons: '4 GB and 65,535-entry limits; weaker ratio than 7z; no solid archives.', best: true },
+  { id: '7z', name: '.7z', what: 'LZMA compression in solid blocks — the smallest output.',
+    pros: 'Best compression here, often 20-40% under zip on source code.',
+    cons: 'Needs 7-Zip/PeaZip; solid blocks make single-file extraction slow; slowest to build.', best: false },
+  { id: 'tar', name: '.tar', what: 'No compression at all — files concatenated with 512-byte headers.',
+    pros: 'Fastest to build, perfect fidelity, streams anywhere; good for re-packing later.',
+    cons: 'Biggest output; Windows needs 7-Zip or tar.exe to open it.', best: false },
+  { id: 'zip.gz', name: '.zip.gz', what: 'A finished .zip, then gzipped.',
+    pros: 'Occasionally shrinks .zip a further few percent; fine if you pipe it around.',
+    cons: 'Double wrapping: gunzip, then unzip. Confusing for anyone you send it to.', best: false },
+  { id: '7z.gz', name: '.7z.gz', what: 'A finished .7z, then gzipped.',
+    pros: 'Almost nothing — 7z is already compressed.',
+    cons: 'Pure overhead: two steps to open, no meaningful size gain.', best: false },
+  { id: 'tar.gz', name: '.tar.gz', what: 'tar streamed through gzip (deflate). The Unix classic.',
+    pros: 'Native on every Linux and macOS box, streams well, one command to unpack.',
+    cons: 'No random access inside; single-threaded gzip; Windows needs 7-Zip or tar.exe.', best: true }
+];
+
+const EXT_POOL = ['html','htm','css','scss','js','mjs','jsx','ts','tsx','json','md','txt','xml','svg','yml','yaml','py','ipynb','c','cc','cpp','h','hpp','cs','java','kt','rs','go','rb','php','swift','lua','sh','sql','glsl','vue','svelte'];
+const PRESETS = {
+  Web: ['html','htm','css','scss','js','mjs','jsx','ts','tsx','json','svg'],
+  Games: ['html','css','js','json','c','cpp','h','lua','glsl'],
+  Python: ['py','ipynb','txt','md','json'],
+  Systems: ['c','cc','cpp','h','hpp','rs','go','swift'],
+  Data: ['json','csv','yml','yaml','xml','txt']
+};
+
+/* ---------------- persisted state ---------------- */
+const LS = 'reposcrape.release.v1';
+const S = {
+  os: null, power: null, queries: [], pat: '', maxPages: 5, sort: 'best', forks: false, archived: false, maxRepos: 300,
+  format: 'zip', partMB: 40, maxParts: 6, stopGB: 2,
+  exts: new Set(['html','css','js','json']), custom: '', dup: false, allowExt: true, skipBlank: true,
+  minKB: 0, maxKB: 4096, maxFilesRepo: 400, excludeDirs: 'node_modules,.git,dist,build,vendor,target,.next',
+  repos: [], picked: new Set(), files: [], stats: { files: 0, bytes: 0, repos: 0, skipped: 0 }
+};
+function save() {
+  try {
+    localStorage.setItem(LS, JSON.stringify({
+      os: S.os, power: S.power, queries: S.queries, pat: S.pat, maxPages: S.maxPages, sort: S.sort,
+      forks: S.forks, archived: S.archived, maxRepos: S.maxRepos, format: S.format, partMB: S.partMB,
+      maxParts: S.maxParts, stopGB: S.stopGB, exts: Array.from(S.exts), custom: S.custom, dup: S.dup,
+      allowExt: S.allowExt, skipBlank: S.skipBlank, minKB: S.minKB, maxKB: S.maxKB,
+      maxFilesRepo: S.maxFilesRepo, excludeDirs: S.excludeDirs
+    }));
+  } catch (e) {}
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(LS);
+    if (!raw) return;
+    const o = JSON.parse(raw);
+    Object.keys(o).forEach(k => {
+      if (k === 'exts') S.exts = new Set(o.exts || []);
+      else if (k in S) S[k] = o[k];
+    });
+  } catch (e) {}
+}
+
+/* ---------------- screen wake lock ---------------- */
+const Wake = {
+  sent: null, want: false,
+  async toggle() {
+    if (!('wakeLock' in navigator)) { toast('This browser has no wake lock API', 'bad'); return; }
+    if (this.want) { this.want = false; try { if (this.sent) await this.sent.release(); } catch (e) {} this.sent = null; }
+    else { this.want = true; try { this.sent = await navigator.wakeLock.request('screen'); } catch (e) { this.want = false; toast('Wake lock refused: ' + e.message, 'bad'); } }
+    this.paint();
+  },
+  async reacquire() { if (this.want && !this.sent) { try { this.sent = await navigator.wakeLock.request('screen'); this.paint(); } catch (e) {} } },
+  paint() {
+    const on = !!(this.want && this.sent);
+    const b = $('#wakeBtn'); if (!b) return;
+    b.classList.toggle('on', on);
+    const t = $('#wakeTxt'); if (t) t.textContent = on ? 'Screen held' : 'Wake lock';
+  }
+};
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') Wake.reacquire(); });
+
+</script>
+
+<script>
+/* ============================================================
+   Wizard
+   ============================================================ */
+const STEPS = [
+  { n: 1, label: 'Device' }, { n: 2, label: 'Queries' }, { n: 3, label: 'Token' }, { n: 4, label: 'Files' },
+  { n: 5, label: 'Filters' }, { n: 6, label: 'Find' }, { n: 7, label: 'Scrape' }, { n: 8, label: 'Download' }
+];
+let step = 1;
+
+function paintRail() {
+  const rail = $('#rail');
+  rail.innerHTML = STEPS.map((s, i) => {
+    const cls = s.n === step ? 'now' : (s.n < step ? 'done' : '');
+    const mark = s.n < step ? '✓' : s.n;
+    return '<div class="seg">' +
+      '<button class="node ' + cls + '" type="button" data-go="' + s.n + '"><span class="num">' + mark + '</span><span class="tl">' + s.label + '</span></button>' +
+      (i < STEPS.length - 1 ? '<span class="bar"></span>' : '') + '</div>';
+  }).join('');
+}
+
+function ready(n) {
+  if (n === 1) return !!(S.os && S.power);
+  if (n === 2) return S.queries.length > 0;
+  if (n === 5) return S.exts.size > 0 || S.custom.trim().length > 0;
+  if (n === 6) return S.picked.size > 0;
+  if (n === 7) return S.files.length > 0;
+  return true;
+}
+
+function paintNav() {
+  const back = $('#btnBack'), next = $('#btnNext'), where = $('#where');
+  const cur = STEPS.find(s => s.n === step);
+  back.style.visibility = step === 1 ? 'hidden' : 'visible';
+  where.innerHTML = 'Step <b>' + step + ' of 8</b> · ' + (cur ? cur.label : '') +
+    (!ready(step) && step < 7 ? '<span style="color:var(--warn)"> — ' + hintFor(step) + '</span>' : '');
+  if (step >= 7) { next.classList.add('hide'); }
+  else {
+    next.classList.remove('hide');
+    next.textContent = step === 6 ? 'Start scraping →' : (step === 1 ? 'Next →' : 'Next →');
+    next.disabled = !ready(step);
+    if (!ready(step)) next.title = hintFor(step);
+  }
+}
+function hintFor(n) {
+  if (n === 1) return 'Pick an OS and a power source first';
+  if (n === 2) return 'Add at least one query';
+  if (n === 5) return 'Pick at least one file type';
+  if (n === 6) return 'Tick at least one repo';
+  return '';
+}
+
+function go(n, opts) {
+  if (n < 1 || n > 8) return;
+  if (!opts || !opts.force) {
+    if (n > step) {                       /* moving forward: every earlier step must be satisfied */
+      for (let i = step; i < n; i++) {
+        if (!ready(i)) { toast(hintFor(i), 'bad'); return; }
+      }
+    }
+  }
+  step = n;
+  $$('.stepbox').forEach(b => b.classList.toggle('hide', Number(b.dataset.step) !== n));
+  paintRail(); paintNav();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+  if (n === 1) renderOs(); if (n === 2) renderQueries();
+  if (n === 4) renderFormats('#fmtCards'); if (n === 5) { renderExts(); paintPresets(); }
+  if (n === 6) renderRepos(); if (n === 7) paintStats(); if (n === 8) paintDownload();
+}
+
+/* ---------------- step 1: device ---------------- */
+function renderOs() {
+  const f = ($('#osFilter').value || '').trim().toLowerCase();
+  const list = OS_LIST.filter(o => !f || (o.name + ' ' + o.sub + ' ' + o.fam).toLowerCase().includes(f));
+  $('#osOpts').innerHTML = list.length ? list.map(o =>
+    '<button class="opt" type="button" data-os="' + o.id + '" aria-pressed="' + (S.os === o.id) + '">' +
+      '<div class="t">' + o.name + '</div><div class="s">' + o.sub + '</div></button>'
+  ).join('') : '<div class="hint" style="padding:10px 2px">Nothing matches “' + esc(f) + '”. Try “android”, “harmony”, “windows”, or pick <b>Something else</b>.</div>';
+  paintAdvice();
+}
+function paintAdvice() {
+  const o = OS_LIST.find(x => x.id === S.os);
+  const p = S.power ? POWER[S.power] : null;
+  const box = $('#adviceBox');
+  if (!o) { box.innerHTML = '<div class="note">Pick a system above and the battery rules for it appear here.</div>'; return; }
+  let html = '<div class="card" style="padding:17px">' +
+    '<div style="font-weight:750;font-size:15px;margin-bottom:2px">' + o.name + ' <span class="hint">· ' + o.sub + '</span></div>' +
+    '<div class="hint" style="margin-bottom:8px">Keep the tab awake while scraping:</div><div class="advice"><ol>' +
+    o.advice.map(a => '<li>' + a + '</li>').join('') + '</ol></div>';
+  if (o.warn) html += '<div class="note bad" style="margin-top:13px">' + o.warn + '</div>';
+  if (p) html += '<div class="note" style="margin-top:13px"><b>Power:</b> ' + p.advice + '</div>';
+  html += '</div>';
+  box.innerHTML = html;
+}
+
+/* ---------------- step 2: queries ---------------- */
+function renderQueries() {
+  const host = $('#qList');
+  host.innerHTML = S.queries.map((q, i) =>
+    '<span class="qchip">' + esc(q) + '<button type="button" data-del="' + i + '" aria-label="Remove ' + esc(q) + '">×</button></span>'
+  ).join('');
+  $('#qEmpty').classList.toggle('hide', S.queries.length > 0);
+  $('#qSuggest').innerHTML = ['topic:games','nice utilities','topic:tools','language:python stars:>100','topic:html5-game','topic:portfolio']
+    .filter(q => !S.queries.includes(q))
+    .map(q => '<button class="chip mini" type="button" data-sug="' + esc(q) + '">+ ' + esc(q) + '</button>').join('');
+  paintNav();
+}
+function addQuery(raw) {
+  const q = String(raw || '').trim();
+  if (!q) return;
+  if (S.queries.includes(q)) { toast('Already in the list', 'bad'); return; }
+  S.queries.push(q); save(); renderQueries(); $('#qInput').value = '';
+  toast('Added “' + q + '”', 'ok');
+}
+
+/* ---------------- step 4/8: formats ---------------- */
+function renderFormats(sel) {
+  const host = $(sel); if (!host) return;
+  host.innerHTML = FORMATS.map(f =>
+    '<button class="fmt" type="button" data-fmt="' + f.id + '" aria-pressed="' + (S.format === f.id) + '">' +
+      '<div class="fn">' + f.name + (f.best ? ' <span class="hint" style="color:var(--ok)">recommended</span>' : '') + '</div>' +
+      '<div class="fd">' + f.what + '</div>' +
+      '<div class="fp"><b>+</b> ' + f.pros + '</div>' +
+      '<div class="fc"><b>−</b> ' + f.cons + '</div>' +
+    '</button>').join('');
+  paintFmtNote();
+}
+function paintFmtNote() {
+  const f = FORMATS.find(x => x.id === S.format);
+  const el = $('#fmtNote');
+  if (el) el.innerHTML = 'Packing <b>' + f.name + '</b>. Parts of <b>' + (Number(S.partMB) || 0) + ' MB</b>' +
+    ((Number(S.partMB) || 0) ? ' — when a part fills it downloads and the next starts' : ' (no splitting: one file)') +
+    ', up to <b>' + (Number(S.maxParts) || 1) + '</b> part' + (Number(S.maxParts) === 1 ? '' : 's') +
+    '. Scraping stops itself at <b>' + (Number(S.stopGB) || 0) + ' GB</b>' + ((Number(S.stopGB) || 0) ? '' : ' (never)') + '.';
+  const d = $('#dlHelp');
+  if (d) d.innerHTML = '<b>' + f.name + '</b> in this run: ' + f.pros;
+}
+
+/* ---------------- step 5: filters ---------------- */
+function renderExts() {
+  $('#extChips').innerHTML = EXT_POOL.map(e =>
+    '<button class="chip mini" type="button" data-ext="' + e + '" aria-pressed="' + S.exts.has(e) + '">' + e + '</button>').join('');
+  $('#presets').innerHTML = Object.keys(PRESETS).map(k =>
+    '<button class="chip" type="button" data-preset="' + k + '">' + k + '</button>').join('') +
+    '<button class="chip" type="button" data-preset="__all">Everything</button>' +
+    '<button class="chip" type="button" data-preset="__none">Clear</button>';
+  paintFilterNote();
+}
+function paintPresets() { }
+function effectiveExts() {
+  const set = new Set(S.exts);
+  String(S.custom || '').split(',').map(t => t.trim().replace(/^\./, '').toLowerCase()).filter(Boolean).forEach(t => set.add(t));
+  return set;
+}
+function paintFilterNote() {
+  const n = effectiveExts().size;
+  $('#filterNote').innerHTML = 'Scraping <b>' + (n || 0) + '</b> file type' + (n === 1 ? '' : 's') +
+    ' · duplicates ' + (S.dup ? '<b>allowed</b>' : 'skipped') +
+    ' · external-asset files ' + (S.allowExt ? '<b>kept</b>' : 'dropped') +
+    ' · blank files ' + (S.skipBlank ? 'skipped' : 'kept') +
+    ' · ' + (Number(S.maxFilesRepo) || 0) + ' files max per repo.';
+}
+
+/* ---------------- step 6: repos ---------------- */
+function renderRepos() {
+  const host = $('#repoList');
+  if (!S.repos.length) {
+    host.innerHTML = '<div style="padding:22px;text-align:center;color:var(--txt3);font-size:13px">Search, then untick what you do not want.</div>';
+  } else {
+    host.innerHTML = S.repos.map((r, i) =>
+      '<label class="repo"><input type="checkbox" data-pick="' + i + '"' + (S.picked.has(r.full) ? ' checked' : '') + '>' +
+        '<span><span class="rn">' + esc(r.full) + '</span>' +
+        '<span class="rm">★ ' + fmtNum(r.stars) + (r.lang ? ' · ' + esc(r.lang) : '') + (r.desc ? ' · ' + esc(r.desc.slice(0, 80)) : '') + '</span></span>' +
+      '</label>').join('');
+  }
+  const n = S.picked.size;
+  $('#repoCount').textContent = S.repos.length ? (n + ' of ' + S.repos.length + ' selected') : 'No repos yet';
+  paintNav();
+}
+
+/* ---------------- step 7: live ---------------- */
+function paintStats() {
+  $('#stFiles').textContent = fmtNum(S.stats.files);
+  $('#stSize').innerHTML = fmtBytes(S.stats.bytes).replace(/ ([A-Z]+)$/, '<small>$1</small>');
+  $('#stRepos').textContent = fmtNum(S.stats.repos);
+  $('#stSkip').textContent = fmtNum(S.stats.skipped);
+  const total = S.picked.size || 1;
+  $('#bar').style.width = Math.min(100, (S.stats.repos / total) * 100) + '%';
+}
+function logLine(msg, kind) {
+  const box = $('#log'); if (!box) return;
+  const d = document.createElement('div');
+  d.className = 'l';
+  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  d.innerHTML = '<span class="tm">' + t + '</span><span class="' + (kind || '') + '" style="flex:1;min-width:0">' + msg + '</span>';
+  box.appendChild(d);
+  while (box.children.length > 400) box.removeChild(box.firstChild);
+  box.scrollTop = box.scrollHeight;
+}
+
+/* ---------------- step 8: download ---------------- */
+function paintDownload() {
+  $('#dlFiles').textContent = fmtNum(S.files.length);
+  $('#dlSize').innerHTML = fmtBytes(S.stats.bytes).replace(/ ([A-Z]+)$/, '<small>$1</small>');
+  $('#dlRepos').textContent = fmtNum(S.stats.repos);
+  $('#dlParts').textContent = String(partsNeeded());
+  renderFormats('#fmtCards2');
+  $('#btnDownload').disabled = !S.files.length;
+  if (!S.files.length) $('#dlState').textContent = 'Nothing collected yet — run a scrape first.';
+}
+function partsNeeded() {
+  const cap = (Number(S.partMB) || 0) * 1024 * 1024;
+  if (!cap || !S.files.length) return 1;
+  let parts = 1, acc = 0;
+  S.files.forEach(f => {
+    if (acc + f.size > cap && acc > 0) { parts++; acc = 0; }
+    acc += f.size;
+  });
+  return Math.min(parts, Number(S.maxParts) || parts);
+}
+
+</script>
+
+<script>
+const ARCH = (() => {
+
+  const enc = new TextEncoder();
+  const archYield = () => new Promise(r => setTimeout(r, 0));
+
+  /* ---------------- byte helpers ---------------- */
+  function bytesConcat(parts) {
+    let total = 0;
+    for (const p of parts) total += p.length;
+    const out = new Uint8Array(total);
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+  const utf8 = (s) => enc.encode(s);
+  function hex4(n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+  function le16(n) { return [n & 255, (n >>> 8) & 255]; }
+  function le32(n) { return hex4(n >>> 0); }
+  function le64big(v) { // number -> 8 little-endian bytes (values < 2^53)
+    let n = BigInt(Math.round(v)), out = [];
+    for (let i = 0; i < 8; i++) { out.push(Number(n & 255n)); n >>= 8n; }
+    return out;
+  }
+
+  /* ---------------- CRC-32 (IEEE) ---------------- */
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[i] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes, seed) {
+    let c = (seed === undefined ? 0 : seed) ^ 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* ---------------- compression primitives ---------------- */
+  const hasCS = (fmt) => { try { new CompressionStream(fmt); return true; } catch (e) { return false; } };
+  async function compress(fmt, bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream(fmt));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function deflateRaw(bytes) { return compress('deflate-raw', bytes); }
+  async function gzipBytes(bytes) { return compress('gzip', bytes); }
+
+  /* ============================================================
+     ZIP  (PKZIP 2.0, deflate or store, UTF-8 names, no zip64)
+     ============================================================ */
+  function dosDateTime(d) {
+    const yr = Math.max(1980, d.getFullYear());
+    return {
+      time: ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | ((Math.floor(d.getSeconds() / 2)) & 31),
+      date: (((yr - 1980) & 127) << 9) | (((d.getMonth() + 1) & 15) << 5) | (d.getDate() & 31)
+    };
+  }
+
+  async function buildZip(entries, onProgress) {
+    const compressOK = hasCS('deflate-raw');
+    const locals = [], central = [];
+    let offset = 0, done = 0;
+    for (const e of entries) {
+      const name = utf8(e.path);
+      const raw = e.data;
+      const dt = dosDateTime(e.date || new Date());
+      let method = 0, body = raw;
+      if (compressOK && raw.length > 180) {
+        const def = await deflateRaw(raw);
+        if (def.length < raw.length) { method = 8; body = def; }
+      }
+      const crc = crc32(raw);
+      const head = new Uint8Array(
+        [].concat(
+          le32(0x04034b50), le16(20), le16(0x0800), le16(method), le16(dt.time), le16(dt.date),
+          le32(crc), le32(body.length), le32(raw.length), le16(name.length), le16(0),
+          Array.from(name)
+        )
+      );
+      locals.push(head, body);
+      central.push(new Uint8Array(
+        [].concat(
+          le32(0x02014b50), le16(20), le16(20), le16(0x0800), le16(method), le16(dt.time), le16(dt.date),
+          le32(crc), le32(body.length), le32(raw.length), le16(name.length), le16(0), le16(0),
+          le16(0), le16(0), le32(0x81A40000), le32(offset),
+          Array.from(name)
+        )
+      ));
+      offset += head.length + body.length;
+      if (onProgress && (++done % 40 === 0)) { onProgress(done / entries.length); await archYield(); }
+    }
+    const cd = bytesConcat(central);
+    const eocd = new Uint8Array([].concat(
+      le32(0x06054b50), le16(0), le16(0), le16(entries.length), le16(entries.length),
+      le32(cd.length), le32(offset), le16(0)
+    ));
+    if (offset > 0xFFFFFFFF) throw new Error('Archive exceeds 4 GB — plain .zip cannot hold that. Use Folder export instead.');
+    if (onProgress) onProgress(1);
+    return bytesConcat(locals.concat([cd, eocd]));
+  }
+
+  /* ============================================================
+     TAR  (POSIX ustar, GNU long-name extension)
+     ============================================================ */
+  function tarHeader(name, size, mtime, type) {
+    const b = new Uint8Array(512);
+    const put = (str, off, len) => { const s = utf8(str); b.set(s.subarray(0, len), off); };
+    const oct = (n, w) => Math.max(0, Math.floor(n)).toString(8).padStart(w, '0').slice(-w);
+    put(name, 0, 100);
+    put('0000644', 100, 8);
+    put('0001750', 108, 8);
+    put('0001750', 116, 8);
+    put(oct(size, 11), 124, 12);
+    put(oct(mtime, 11), 136, 12);
+    b.fill(32, 148, 156);                       // checksum placeholder (spaces)
+    b[156] = (type || '0').charCodeAt(0);
+    put('ustar\u000000', 257, 8);
+    put('root', 265, 32);
+    put('root', 297, 32);
+    put('0000000', 329, 8);
+    put('0000000', 337, 8);
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += b[i];
+    b.set(utf8(oct(sum, 6) + '\u0000 '), 148);
+    return b;
+  }
+  function tarPad(len) { const r = len % 512; return r ? new Uint8Array(512 - r) : new Uint8Array(0); }
+
+  async function buildTar(entries, onProgress) {
+    const parts = [];
+    let done = 0;
+    for (const e of entries) {
+      const nameBytes = utf8(e.path);
+      const mtime = Math.floor(((e.date || new Date()).getTime()) / 1000);
+      let storedName = e.path;
+      if (nameBytes.length > 100) {              // GNU ././@LongLink extension
+        const longName = bytesConcat([nameBytes, new Uint8Array([0])]);
+        parts.push(tarHeader('././@LongLink', longName.length, mtime, 'L'), longName, tarPad(longName.length));
+        storedName = e.path.slice(-99);          // ignored by extractors once @LongLink is honoured
+      }
+      parts.push(tarHeader(storedName, e.data.length, mtime, '0'), e.data, tarPad(e.data.length));
+      if (onProgress && (++done % 60 === 0)) { onProgress(done / entries.length); await archYield(); }
+    }
+    parts.push(new Uint8Array(1024));            // end-of-archive
+    if (onProgress) onProgress(1);
+    return bytesConcat(parts);
+  }
+
+  /* ============================================================
+     7Z  (7z container, "Copy" codec — uncompressed, per-file folders)
+     ============================================================ */
+  function szNum(out, value) {          // 7-Zip variable length number
+    let v = typeof value === 'bigint' ? value : BigInt(Math.round(value));
+    const Z = 0n, ONE = 1n;
+    if (v < Z) v = Z;
+    let i = 0;
+    for (; i < 8; i++) {
+      if ((v >> BigInt(8 * i)) < (ONE << BigInt(7 - i))) break;
+    }
+    let first = 0, mask = 0x80;
+    for (let k = 0; k < i; k++) { first |= mask; mask >>= 1; }
+    if (i >= 8) { first = 0xFF; }
+    else {
+      const high = v >> BigInt(8 * i);
+      first |= Number(high & BigInt(mask - 1));
+    }
+    out.push(first);
+    let rest = i >= 8 ? v : (v & ((ONE << BigInt(8 * i)) - 1n));
+    for (let k = 0; k < i; k++) { out.push(Number(rest & 255n)); rest >>= 8n; }
+  }
+  function szUtf16LE(str) {              // code units, little endian
+    const out = [];
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      out.push(c & 255, (c >>> 8) & 255);
+    }
+    return out;
+  }
+  function szBitSet(flags) {             // bit vector, most-significant bit first
+    const out = new Uint8Array(Math.ceil(flags.length / 8));
+    flags.forEach((f, i) => { if (f) out[i >> 3] |= (1 << (7 - (i & 7))); });
+    return out;
+  }
+  function filetime(date) {              // 100 ns ticks since 1601-01-01
+    const ms = (date || new Date()).getTime();
+    return (ms + 11644473600000) * 10000;
+  }
+
+  function build7z(entries, onProgress) {
+    const files = entries.slice();
+    if (!files.length) throw new Error('Nothing to write.');
+    const withStream = files.filter(e => e.data && e.data.length > 0);
+    const h = [];
+
+    h.push(0x01);                                   // kHeader
+    h.push(0x04);                                   // kMainStreamsInfo
+
+    // ---- PackInfo
+    h.push(0x06);
+    szNum(h, 0);                                    // PackPos
+    szNum(h, withStream.length);                    // NumPackStreams
+    h.push(0x09);                                   // kSize
+    for (const e of withStream) szNum(h, e.data.length);
+    h.push(0x00);                                   // kEnd
+
+    // ---- UnPackInfo
+    h.push(0x07);
+    h.push(0x0B);                                   // kFolder
+    szNum(h, withStream.length);                    // NumFolders
+    h.push(0x00);                                   // External = false
+    for (let i = 0; i < withStream.length; i++) {
+      szNum(h, 1);                                  // NumCoders
+      h.push(0x01);                                 // flags: idSize=1, simple coder, no attrs
+      h.push(0x00);                                 // codec id 0x00 = Copy
+    }
+    h.push(0x0C);                                   // kCodersUnPackSize
+    for (const e of withStream) szNum(h, e.data.length);
+    h.push(0x0A);                                   // kCRC
+    h.push(0x01);                                   // AllAreDefined
+    for (const e of withStream) { const c = crc32(e.data); h.push(c & 255, (c >>> 8) & 255, (c >>> 16) & 255, (c >>> 24) & 255); }
+    h.push(0x00);                                   // kEnd
+    h.push(0x08); h.push(0x00);                     // kSubStreamsInfo (all defaults)
+    h.push(0x00);                                   // kEnd MainStreamsInfo
+
+    // ---- FilesInfo
+    h.push(0x05);
+    szNum(h, files.length);
+
+    // names
+    let nameBytes = [];
+    for (const e of files) { nameBytes = nameBytes.concat(szUtf16LE(e.path)); nameBytes.push(0, 0); }
+    h.push(0x11);                                   // kName
+    szNum(h, nameBytes.length + 1);                 // property size (includes External byte)
+    h.push(0x00);                                   // External = false
+    for (const b of nameBytes) h.push(b);
+
+    // empty streams (0-byte files) + which are files rather than directories
+    const isEmpty = files.map(e => !(e.data && e.data.length));
+    if (isEmpty.some(Boolean)) {
+      const es = szBitSet(isEmpty);
+      h.push(0x0E); szNum(h, es.length);
+      for (const b of es) h.push(b);
+      const ef = szBitSet(new Array(isEmpty.filter(Boolean).length).fill(true));
+      h.push(0x0F); szNum(h, ef.length);
+      for (const b of ef) h.push(b);
+    }
+    // modification times
+    h.push(0x14);                                   // kMTime
+    const mt = [];
+    mt.push(0x01);                                  // AllAreDefined
+    mt.push(0x00);                                  // External = false
+    for (const e of files) {
+      const t = le64big(filetime(e.date));
+      mt.push(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]);
+    }
+    szNum(h, mt.length);
+    for (const b of mt) h.push(b);
+
+    h.push(0x00);                                   // kEnd FilesInfo
+    h.push(0x00);                                   // kEnd Header
+
+    const header = Uint8Array.from(h);
+    const packed = bytesConcat(withStream.map(e => e.data));
+    if (onProgress) onProgress(0.5);
+
+    // signature header
+    const start = new Uint8Array(32);
+    start.set([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, 0x00, 0x04], 0);
+    const tail = new Uint8Array([].concat(le64big(packed.length), le64big(header.length), le32(crc32(header))));
+    start.set(tail, 12);
+    const startCRC = crc32(tail);
+    start.set(le32(startCRC), 8);
+
+    if (onProgress) onProgress(1);
+    return bytesConcat([start, packed, header]);
+  }
+
+  /* ============================================================
+     facade
+     ============================================================ */
+  return {
+    crc32, bytesConcat, buildZip, buildTar, build7z, gzipBytes, deflateRaw, hasCS,
+    build(format, entries, onProgress) {
+      if (format === 'zip') return buildZip(entries, onProgress);
+      if (format === 'tar') return buildTar(entries, onProgress);
+      if (format === '7z') return build7z(entries, onProgress);
+      throw new Error('Unknown format ' + format);
+    }
+  };
+})();
+/* ARCHIVE-END */
+/* ============================================================
+   GitHub API
+   ============================================================ */
+const API = 'https://api.github.com', RAW = 'https://raw.githubusercontent.com';
+const RL = { limit: null, remaining: null, reset: 0 };
+function ghHeaders() {
+  const h = { 'Accept': 'application/vnd.github+json' };
+  if (S.pat) h['Authorization'] = 'Bearer ' + S.pat;
+  return h;
+}
+async function ghFetch(url, tries) {
+  tries = tries == null ? 2 : tries;
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, { headers: ghHeaders() });
+    if (res.headers.get('x-ratelimit-remaining') != null) {
+      RL.remaining = Number(res.headers.get('x-ratelimit-remaining'));
+      RL.limit = Number(res.headers.get('x-ratelimit-limit'));
+      RL.reset = Number(res.headers.get('x-ratelimit-reset')) * 1000;
+    }
+    if (res.ok) return res;
+    if (res.status === 403 || res.status === 429) {
+      const wait = Math.max(0, RL.reset - Date.now());
+      if (wait > 0 && wait < 120000 && attempt < tries) { logLine('Rate limited — waiting ' + fmtDur(wait), 'er'); await sleep(wait + 1200); continue; }
+      throw new Error('rate limited (' + (RL.remaining === 0 ? 'quota exhausted' : res.status) + ')');
+    }
+    if (res.status === 404) throw new Error('404');
+    if (res.status >= 500 && attempt < tries) { await sleep(900 * (attempt + 1)); continue; }
+    throw new Error('HTTP ' + res.status);
+  }
+}
+async function searchQuery(q, page) {
+  const sort = S.sort === 'best' ? '' : '&sort=' + S.sort + '&order=desc';
+  const url = API + '/search/repositories?q=' + encodeURIComponent(q + (S.forks ? '' : ' fork:false') + (S.archived ? '' : ' archived:false')) +
+    '&per_page=100&page=' + page + sort;
+  const res = await ghFetch(url);
+  const j = await res.json();
+  return { total: j.total_count || 0, items: (j.items || []).map(r => ({
+    full: r.full_name, owner: r.owner.login, repo: r.name, stars: r.stargazers_count,
+    lang: r.language, desc: r.description || '', url: r.html_url
+  })) };
+}
+async function doSearch() {
+  if (!S.queries.length) { toast('Add a query first', 'bad'); return; }
+  const btn = $('#btnSearch'); btn.disabled = true; btn.innerHTML = '<span class="spin"></span> Searching…';
+  $('#searchState').textContent = '';
+  const found = new Map();
+  try {
+    for (const q of S.queries) {
+      for (let p = 1; p <= Number(S.maxPages || 5); p++) {
+        $('#searchState').textContent = 'query ' + (S.queries.indexOf(q) + 1) + '/' + S.queries.length + ' · page ' + p;
+        let r;
+        try { r = await searchQuery(q, p); }
+        catch (e) { toast('“' + q + '” failed: ' + e.message, 'bad'); break; }
+        r.items.forEach(it => { if (!found.has(it.full)) found.set(it.full, it); });
+        if (r.items.length < 100) break;
+        if (found.size >= Number(S.maxRepos || 300)) break;
+        await sleep(220);
+      }
+      if (found.size >= Number(S.maxRepos || 300)) break;
+    }
+    S.repos = Array.from(found.values()).slice(0, Number(S.maxRepos || 300));
+    S.picked = new Set(S.repos.map(r => r.full));
+    renderRepos();
+    $('#searchState').textContent = S.repos.length ? ('found ' + fmtNum(S.repos.length) + ' repos') : 'nothing found';
+    if (S.repos.length) toast(fmtNum(S.repos.length) + ' repos found', 'ok');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Search GitHub';
+  }
+}
+
+/* ---------------- demo (no network) ---------------- */
+const DEMO = [
+  { full: 'demo-org/static-site', lang: 'HTML', stars: 1840, desc: 'Sample static site', files: { 'index.html': 520, 'css/site.css': 310, 'js/app.js': 240 } },
+  { full: 'demo-org/canvas-game', lang: 'JavaScript', stars: 960, desc: 'Little canvas game', files: { 'index.html': 380, 'game.js': 620, 'assets/glsl/shader.glsl': 150 } },
+  { full: 'demo-org/nice-utilities', lang: 'Python', stars: 420, desc: 'Small helpful scripts', files: { 'util.py': 210, 'io.py': 180, 'README.md': 90, 'data/blank.txt': 1 } }
+];
+function demoBytes(path, size) {
+  if (size <= 1) return new TextEncoder().encode('\n');
+  const seed = 'demo file ' + path + ' — generated locally, no network. ';
+  let s = ''; while (s.length < size) s += seed;
+  return new TextEncoder().encode(s.slice(0, size));
+}
+function loadDemo() {
+  S.repos = DEMO.map(d => ({ full: d.full, owner: d.full.split('/')[0], repo: d.full.split('/')[1], stars: d.stars, lang: d.lang, desc: d.desc, url: 'https://github.com/' + d.full }));
+  S.picked = new Set(S.repos.map(r => r.full));
+  renderRepos();
+  $('#searchState').textContent = 'demo repos loaded (no network used)';
+  toast('3 demo repos ready', 'ok');
+}
+
+/* ============================================================
+   Scrape
+   ============================================================ */
+let stopFlag = false;
+const EXT_SET = () => effectiveExts();
+const ASSET_RE = /<script[^>]+src\s*=|@import|<link[^>]+href\s*=|url\(\s*['"]?(?!data:)|<img[^>]+src\s*=/i;
+
+async function hashBytes(bytes) {
+  try {
+    if (crypto && crypto.subtle) {
+      const d = await crypto.subtle.digest('SHA-256', bytes);
+      return Array.from(new Uint8Array(d)).slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+  } catch (e) {}
+  let h = 5381;
+  for (let i = 0; i < bytes.length; i += 7) h = ((h << 5) + h + bytes[i]) | 0;
+  return 'h' + (h >>> 0).toString(16) + bytes.length;
+}
+function extOf(p) { const m = /\.([A-Za-z0-9]+)$/.exec(p || ''); return m ? m[1].toLowerCase() : ''; }
+function dirSkipped(p) {
+  const skip = String(S.excludeDirs || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+  const low = ('/' + p).toLowerCase();
+  return skip.some(d => low.includes('/' + d + '/'));
+}
+function isBlank(bytes) {
+  const n = Math.min(bytes.length, 4000);
+  for (let i = 0; i < n; i++) { const c = bytes[i]; if (c !== 32 && c !== 10 && c !== 13 && c !== 9 && c !== 0) return false; }
+  return true;
+}
+function needsAssets(bytes) {
+  const n = Math.min(bytes.length, 400000);
+  return ASSET_RE.test(new TextDecoder().decode(bytes.subarray(0, n)));
+}
+
+async function fetchTree(full) {
+  const res = await ghFetch(API + '/repos/' + full + '/git/trees/HEAD?recursive=1');
+  const j = await res.json();
+  return (j.tree || []).filter(n => n.type === 'blob');
+}
+async function fetchFile(full, path) {
+  const url = RAW + '/' + full + '/HEAD/' + path.split('/').map(encodeURIComponent).join('/');
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return new Uint8Array(await res.arrayBuffer());
+}
+async function pool(items, limit, fn) {
+  let i = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (i < items.length) { const idx = i++; await fn(items[idx], idx); }
+  });
+  await Promise.all(workers);
+}
+
+async function startScrape() {
+  const picked = S.repos.filter(r => S.picked.has(r.full));
+  if (!picked.length) { toast('Tick at least one repo', 'bad'); return; }
+  stopFlag = false;
+  S.files = []; S.stats = { files: 0, bytes: 0, repos: 0, skipped: 0 }; S.seen = new Set();
+  const demo = picked.every(p => p.full.startsWith('demo-org/'));
+  $('#log').innerHTML = '';
+  $('#btnRun').classList.add('hide'); $('#btnStop').classList.remove('hide');
+  $('#runState').textContent = demo ? 'demo run' : 'live run';
+  logLine('<b>Starting</b> — ' + picked.length + ' repos, ' + EXT_SET().size + ' file types' + (demo ? ' (demo, no network)' : ''), 'acc');
+  const stopBytes = (Number(S.stopGB) || 0) * 1024 * 1024 * 1024;
+  const maxKB = (Number(S.maxKB) || 0) * 1024, minKB = (Number(S.minKB) || 0) * 1024;
+
+  for (const repo of picked) {
+    if (stopFlag) break;
+    if (stopBytes && S.stats.bytes >= stopBytes) { logLine('<b>Size limit reached</b> — ' + fmtBytes(stopBytes) + ' collected', 'acc'); break; }
+    $('#nowLine').textContent = repo.full + ' — reading tree';
+    try {
+      const blobs = demo
+        ? Object.entries(DEMO.find(d => d.full === repo.full).files).map(([p, size]) => ({ path: p, size }))
+        : await fetchTree(repo.full);
+
+      const wanted = blobs.filter(b => {
+        const ext = extOf(b.path);
+        if (!EXT_SET().has(ext)) return false;
+        if (dirSkipped(b.path)) return false;
+        const sz = b.size == null ? 0 : b.size;
+        if (maxKB && sz > maxKB) return false;
+        if (minKB && sz && sz < minKB) return false;
+        return true;
+      }).slice(0, Number(S.maxFilesRepo) || 400);
+
+      let got = 0;
+      await pool(wanted, demo ? 2 : 6, async (b) => {
+        if (stopFlag) return;
+        try {
+          const bytes = demo ? demoBytes(b.path, b.size) : await fetchFile(repo.full, b.path);
+          if (!bytes.length) { S.stats.skipped++; return; }
+          if (S.skipBlank && isBlank(bytes)) { S.stats.skipped++; return; }
+          if (!S.allowExt && needsAssets(bytes)) { S.stats.skipped++; return; }
+          const h = await hashBytes(bytes);
+          if (!S.dup && S.seen.has(h)) { S.stats.skipped++; return; }
+          S.seen.add(h);
+          S.files.push({ repo: repo.full, path: b.path, size: bytes.length, bytes });
+          S.stats.files++; S.stats.bytes += bytes.length; got++;
+          $('#nowLine').textContent = repo.full + '/' + b.path + ' — ' + fmtBytes(bytes.length);
+          paintStats();
+          if (stopBytes && S.stats.bytes >= stopBytes) stopFlag = true;
+        } catch (e) { S.stats.skipped++; }
+      });
+      S.stats.repos++;
+      logLine('✓ <b>' + esc(repo.full) + '</b> — ' + got + ' file' + (got === 1 ? '' : 's'), 'ok');
+      paintStats();
+      if (demo) await sleep(320);
+    } catch (e) {
+      logLine('✗ ' + esc(repo.full) + ' — ' + esc(e.message), 'er');
+    }
+  }
+  $('#btnRun').classList.remove('hide'); $('#btnStop').classList.add('hide');
+  const why = stopFlag ? 'stopped' : (stopBytes && S.stats.bytes >= stopBytes ? 'size limit' : 'finished');
+  $('#runState').textContent = why;
+  $('#nowLine').textContent = why + ' — ' + fmtNum(S.stats.files) + ' files · ' + fmtBytes(S.stats.bytes);
+  logLine('<b>Done</b> · ' + why + ' · ' + fmtNum(S.stats.files) + ' files · ' + fmtBytes(S.stats.bytes), 'acc');
+  paintStats();
+}
+
+/* ============================================================
+   Packing and download
+   ============================================================ */
+function baseFormat() { return S.format.replace(/\.gz$/, ''); }
+function wantsGzip() { return /\.gz$/.test(S.format); }
+function entriesFor(list) {
+  /* the encoders expect { path, data, date } — path is the full name inside the archive */
+  const date = new Date();
+  const seen = new Map();
+  return list.map((f) => {
+    let name = 'Repo - ' + f.repo + '/' + f.path;   /* repo folder keeps every file unique */
+    if (seen.has(name)) { const n = seen.get(name) + 1; seen.set(name, n); name = name.replace(/(\.[^./]+)?$/, '-' + n + '$1'); }
+    else seen.set(name, 1);
+    return { path: name, data: f.bytes, date };
+  });
+}
+function splitFiles() {
+  const cap = (Number(S.partMB) || 0) * 1024 * 1024;
+  const maxParts = Math.max(1, Number(S.maxParts) || 1);
+  if (!cap) return [S.files.slice()];
+  const parts = []; let cur = []; let acc = 0;
+  S.files.forEach(f => {
+    if (acc + f.size > cap && cur.length) { parts.push(cur); cur = []; acc = 0; }
+    cur.push(f); acc += f.size;
+  });
+  if (cur.length) parts.push(cur);
+  if (parts.length > maxParts) {
+    const kept = parts.slice(0, maxParts);
+    const rest = parts.slice(maxParts).reduce((a, b) => a.concat(b), []);
+    kept[kept.length - 1] = kept[kept.length - 1].concat(rest);
+    return kept;
+  }
+  return parts;
+}
+function stamp() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
+}
+function saveBlob(bytes, filename) {
+  const blob = new Blob([bytes], { type: 'application/octet-stream' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
+}
+async function doDownload() {
+  if (!S.files.length) { toast('Nothing to download yet', 'bad'); return; }
+  const btn = $('#btnDownload'); btn.disabled = true;
+  const parts = splitFiles();
+  const ext = S.format;
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      $('#dlState').textContent = 'packing part ' + (i + 1) + ' of ' + parts.length + '…';
+      let bytes = await ARCH.build(baseFormat(), entriesFor(parts[i], 0, 0), (pct) => {
+        $('#dlState').textContent = 'packing part ' + (i + 1) + '/' + parts.length + ' · ' + Math.round(pct) + '%';
+      });
+      if (wantsGzip()) { $('#dlState').textContent = 'gzipping part ' + (i + 1) + '…'; bytes = await ARCH.gzipBytes(bytes); }
+      const name = 'reposcrape-' + stamp() + (parts.length > 1 ? '-part' + (i + 1) + 'of' + parts.length : '') + '.' + ext;
+      saveBlob(bytes, name);
+      logLine('⬇ <b>' + esc(name) + '</b> — ' + fmtBytes(bytes.length), 'ok');
+      $('#dlState').textContent = 'saved ' + name + ' (' + fmtBytes(bytes.length) + ')';
+      await sleep(600);
+    }
+    toast('Downloaded ' + parts.length + ' archive' + (parts.length === 1 ? '' : 's'), 'ok');
+  } catch (e) {
+    $('#dlState').textContent = 'packing failed: ' + e.message;
+    toast('Packing failed: ' + e.message, 'bad');
+  } finally { btn.disabled = false; }
+}
+
+/* ============================================================
+   Wire up
+   ============================================================ */
+function bindNum(sel, key, after) {
+  const el = $(sel); if (!el) return;
+  el.addEventListener('input', () => {
+    S[key] = el.value === '' ? 0 : Number(el.value);
+    save(); if (after) after();
+  });
+}
+function bindText(sel, key) {
+  const el = $(sel); if (!el) return;
+  el.addEventListener('input', () => { S[key] = el.value; save(); });
+}
+function bindChip(sel, key, after) {
+  const el = $(sel); if (!el) return;
+  el.setAttribute('aria-pressed', String(!!S[key]));
+  el.addEventListener('click', () => {
+    S[key] = !S[key];
+    el.setAttribute('aria-pressed', String(S[key]));
+    save(); if (after) after();
+  });
+}
+function paintAll() {
+  if (S.os) { const o = OS_LIST.find(x => x.id === S.os); if (!o) S.os = null; }
+  $$('#powOpts .opt').forEach(b => b.setAttribute('aria-pressed', String(S.power === b.dataset.pow)));
+  $('#maxPages').value = S.maxPages; $('#sortSel').value = S.sort; $('#maxRepos').value = S.maxRepos;
+  $('#pat').value = S.pat || '';
+  $('#partMB').value = S.partMB; $('#maxParts').value = S.maxParts; $('#stopGB').value = S.stopGB;
+  $('#minKB').value = S.minKB; $('#maxKB').value = S.maxKB; $('#maxFilesRepo').value = S.maxFilesRepo;
+  $('#excludeDirs').value = S.excludeDirs; $('#extCustom').value = S.custom || '';
+  $('#forksChip').setAttribute('aria-pressed', String(!!S.forks));
+  $('#archChip').setAttribute('aria-pressed', String(!!S.archived));
+  $('#dupChip').setAttribute('aria-pressed', String(!!S.dup));
+  $('#extChip').setAttribute('aria-pressed', String(!!S.allowExt));
+  $('#blankChip').setAttribute('aria-pressed', String(!!S.skipBlank));
+  $('#buildPill').textContent = BUILD;
+}
+
+function wire() {
+  /* rail + nav */
+  $('#rail').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-go]'); if (b) go(Number(b.dataset.go));
+  });
+  $('#btnBack').addEventListener('click', () => go(step - 1, { force: true }));
+  $('#btnNext').addEventListener('click', () => {
+    if (step === 6) { go(7); runScrapeFlow(); return; }
+    go(step + 1);
+  });
+
+  /* step 1 */
+  $('#osFilter').addEventListener('input', renderOs);
+  $('#osOpts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-os]'); if (!b) return;
+    S.os = b.dataset.os; save();
+    $$('#osOpts .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    paintAdvice(); paintNav();
+  });
+  $('#powOpts').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-pow]'); if (!b) return;
+    S.power = b.dataset.pow; save();
+    $$('#powOpts .opt').forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+    paintAdvice(); paintNav();
+  });
+
+  /* step 2 */
+  $('#qAdd').addEventListener('click', () => addQuery($('#qInput').value));
+  $('#qInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addQuery($('#qInput').value); } });
+  $('#qList').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-del]'); if (!b) return;
+    S.queries.splice(Number(b.dataset.del), 1); save(); renderQueries();
+  });
+  $('#qSuggest').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sug]'); if (b) addQuery(b.dataset.sug);
+  });
+
+  /* step 3 */
+  bindText('#pat', 'pat');
+  bindNum('#maxPages', 'maxPages');
+  bindNum('#maxRepos', 'maxRepos');
+  $('#sortSel').addEventListener('change', () => { S.sort = $('#sortSel').value; save(); });
+  bindChip('#forksChip', 'forks');
+  bindChip('#archChip', 'archived');
+  $('#patCheck').addEventListener('click', async () => {
+    const st = $('#patState');
+    if (!S.pat) { st.textContent = 'No token set — anonymous limits apply (60 requests/hour).'; return; }
+    st.innerHTML = '<span class="spin"></span> checking…';
+    try {
+      const res = await fetch(API + '/user', { headers: ghHeaders() });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const u = await res.json();
+      st.innerHTML = '<span style="color:var(--ok)">✓ token valid for <b>' + esc(u.login) + '</b></span>' +
+        (RL.remaining != null ? ' · ' + fmtNum(RL.remaining) + '/' + fmtNum(RL.limit) + ' requests left' : '');
+    } catch (e) {
+      st.innerHTML = '<span style="color:var(--bad)">✗ ' + esc(e.message) + ' — check the token or your connection.</span>';
+    }
+  });
+
+  /* step 4 + 8 formats */
+  ['#fmtCards', '#fmtCards2'].forEach(sel => {
+    const host = $(sel); if (!host) return;
+    host.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-fmt]'); if (!b) return;
+      S.format = b.dataset.fmt; save();
+      renderFormats('#fmtCards'); renderFormats('#fmtCards2'); paintDownload();
+    });
+  });
+  bindNum('#partMB', 'partMB', () => { paintFmtNote(); paintDownload(); });
+  bindNum('#maxParts', 'maxParts', () => { paintFmtNote(); paintDownload(); });
+  bindNum('#stopGB', 'stopGB', paintFmtNote);
+
+  /* step 5 */
+  bindNum('#minKB', 'minKB'); bindNum('#maxKB', 'maxKB'); bindNum('#maxFilesRepo', 'maxFilesRepo', paintFilterNote);
+  bindText('#excludeDirs', 'excludeDirs');
+  $('#extCustom').addEventListener('input', () => { S.custom = $('#extCustom').value; save(); paintFilterNote(); paintNav(); });
+  $('#extChips').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-ext]'); if (!b) return;
+    const ext = b.dataset.ext;
+    if (S.exts.has(ext)) S.exts.delete(ext); else S.exts.add(ext);
+    b.setAttribute('aria-pressed', String(S.exts.has(ext)));
+    save(); paintFilterNote(); paintNav();
+  });
+  $('#presets').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-preset]'); if (!b) return;
+    const k = b.dataset.preset;
+    if (k === '__all') S.exts = new Set(EXT_POOL);
+    else if (k === '__none') S.exts = new Set();
+    else S.exts = new Set(PRESETS[k] || []);
+    save(); renderExts(); paintNav();
+  });
+  bindChip('#dupChip', 'dup', paintFilterNote);
+  bindChip('#extChip', 'allowExt', paintFilterNote);
+  bindChip('#blankChip', 'skipBlank', paintFilterNote);
+
+  /* step 6 */
+  $('#btnSearch').addEventListener('click', doSearch);
+  $('#btnDemoSearch').addEventListener('click', loadDemo);
+  $('#selAll').addEventListener('click', () => { S.picked = new Set(S.repos.map(r => r.full)); renderRepos(); });
+  $('#selNone').addEventListener('click', () => { S.picked = new Set(); renderRepos(); });
+  $('#repoList').addEventListener('change', (e) => {
+    const c = e.target.closest('[data-pick]'); if (!c) return;
+    const r = S.repos[Number(c.dataset.pick)];
+    if (!r) return;
+    if (c.checked) S.picked.add(r.full); else S.picked.delete(r.full);
+    $('#repoCount').textContent = S.picked.size + ' of ' + S.repos.length + ' selected';
+    paintNav();
+  });
+
+  /* step 7 */
+  $('#btnRun').addEventListener('click', runScrapeFlow);
+  $('#btnStop').addEventListener('click', () => {
+    if (!stopFlag) { stopFlag = true; logLine('Stopping after the current files…', 'er'); $('#runState').textContent = 'stopping…'; }
+  });
+
+  /* step 8 */
+  $('#btnDownload').addEventListener('click', doDownload);
+
+  /* wake lock */
+  $('#wakeBtn').addEventListener('click', () => Wake.toggle());
+}
+
+let running = false;
+async function runScrapeFlow() {
+  if (running) return;
+  running = true;
+  const wasStopped = await (async () => { await startScrape(); return stopFlag; })();
+  running = false;
+  if (wasStopped) {                       /* Stop & download, or a size limit */
+    go(8, { force: true });
+    await sleep(350);
+    doDownload();
+  }
+}
+
+/* ---------------- boot ---------------- */
+(function boot() {
+  const err = (e) => {
+    const box = $('#bootErr');
+    if (box) { box.classList.remove('hide'); box.textContent = 'Startup error: ' + ((e && e.message) || e); }
+  };
+  try {
+    load();
+    paintAll();
+    wire();
+    paintRail(); paintNav();
+    renderOs(); renderQueries(); renderFormats('#fmtCards');
+
+    const ticks = ['reading your browser', 'loading archive encoders', 'warming the engine', 'ready'];
+    let i = 0;
+    const tick = setInterval(() => {
+      i++; const el = $('#spTick');
+      if (el && i < ticks.length) el.textContent = ticks[i];
+      if (i >= ticks.length) clearInterval(tick);
+    }, 380);
+
+    setTimeout(() => {
+      const sp = $('#splash');
+      if (sp) { sp.classList.add('gone'); setTimeout(() => sp.remove(), 600); }
+      $('#app').classList.remove('hide');
+      $('#nav').classList.remove('hide');
+      go(1, { force: true });
+    }, 1650);
+  } catch (e) { err(e); }
+  window.addEventListener('error', (e) => {
+    const box = $('#bootErr');
+    if (box && box.classList.contains('hide')) { box.classList.remove('hide'); box.textContent = 'Script error: ' + e.message; }
+  });
+})();
+
+</script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5f8c6a0dace7689',t:'MTc5NTUyNzEwNg=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5f8c6a0dace7689',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
