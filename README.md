@@ -109,14 +109,14 @@ glsl, frag, lua
 
 | Format | Description |
 | --- | --- |
-| ZIP | Broad OS compatibility and random file access |
-| 7z | Strong compression for smaller archives |
+| ZIP | Broad OS compatibility with automatic ZIP64 support for >4 GB and >65,535 files |
+| 7z | Streamed 7z container (Copy codec) supporting 64-bit archives |
 | TAR | Fast, stream-friendly, uncompressed output |
-| ZIP.GZ | Gzip-compressed finished ZIP |
-| 7Z.GZ | Gzip-compressed finished 7z |
-| TAR.GZ | Gzip-compressed TAR, common on Unix systems |
+| ZIP.GZ | Streamed ZIP piped through gzip |
+| 7Z.GZ | Streamed 7z piped through gzip |
+| TAR.GZ | Streamed TAR piped through gzip, common on Unix systems |
 
-ZIP and TAR/7z support depends on the browser and build codec support. The app provides multiple archive options and reports the selected format in the final step.
+ZIP and TAR/7z support depends on the browser and build codec support. The app streams archives one file at a time from disk and supports direct-to-disk saving via the File System Access API (`Stream directly to disk` or `Export raw folder`) as well as standard browser downloads.
 
 ## Privacy and Data Handling
 
@@ -124,31 +124,34 @@ RepoScrape does not require a backend service. It:
 
 - stores wizard settings in browser `localStorage`;
 - sends repository searches and file requests to GitHub APIs;
-- keeps collected file contents in browser memory; and
-- generates downloads entirely in the user's browser.
+- streams collected file contents straight to browser disk storage (OPFS pack files via Web Worker, with IndexedDB Blob fallback) instead of holding scraped files in RAM;
+- saves scrape checkpoints, selected repositories, deduplication hashes, and file metadata in IndexedDB so you can close or refresh the tab and resume where you left off; and
+- streams archive output directly to disk or via OPFS-backed file downloads.
 
-Closing or refreshing the page clears collected in-memory file data unless the browser restores saved settings. Downloaded archives remain in the browser's downloads folder.
+You can pause and resume later, or clear saved progress anytime with **Start fresh (clear saved)**.
 
 ## Browser Requirements
 
 RepoScrape uses modern browser APIs, including:
 
-- `fetch`, `TextEncoder`, `TextDecoder`, and `Blob`;
+- `fetch`, `TextEncoder`, `TextDecoder`, `Blob`, and `IndexedDB`;
+- Origin Private File System (`navigator.storage.getDirectory`) and Web Workers for zero-RAM disk packing (automatic IndexedDB fallback if unavailable);
+- optional File System Access API (`showSaveFilePicker` / `showDirectoryPicker`) for direct-to-disk 10 GB+ streaming;
 - `localStorage` and `URL.createObjectURL`; and
-- optional `CompressionStream` support for gzip output.
+- optional `CompressionStream` support for gzip output and ZIP deflate.
 
 Chrome, Edge, Firefox, Safari, and current Chromium-based mobile browsers should provide the core experience. The Screen Wake Lock API is optional and is shown as unavailable when unsupported.
 
-## Stopping a Scrape
+## Stopping or Pausing a Scrape
 
-Use **Stop & download** during a run to stop further collection and move to the download step. RepoScrape preserves the files collected before the stop, subject to configured archive limits.
+Use **Pause & save** to stop after in-flight files and keep your saved checkpoint on disk, or **Stop & download** during a run to move straight to the download step. RepoScrape preserves all files saved before the stop or an accidental tab close.
 
 ## Limitations
 
 - GitHub API quotas apply to repository searches and file requests.
 - GitHub searches return at most 1,000 results per query.
 - Large or binary files may need to be filtered before download.
-- Browser memory limits apply to very large runs.
+- Browser storage quotas apply to cached files unless **Auto-download parts & free disk** is enabled.
 - Background behavior varies by operating system and browser power settings.
 - Keeping an Android or iOS browser tab active may require adjusting OEM battery restrictions.
 - Network access is required for live searches and repository collection unless the offline demo is used.
