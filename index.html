@@ -29,7 +29,7 @@ code,.mono{font-family:var(--mono);font-size:.92em}
 /* ---------------- splash ---------------- */
 #splash{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;
   background:radial-gradient(700px 420px at 50% 42%,rgba(91,140,255,.18),transparent 70%),var(--bg);
-  transition:opacity .5s ease,visibility .5s}
+  transition:opacity .45s ease,visibility .45s}
 #splash.gone{opacity:0;visibility:hidden;pointer-events:none}
 .sp-mark{position:relative;width:112px;height:112px;display:grid;place-items:center}
 .sp-mark::before,.sp-mark::after{content:"";position:absolute;inset:0;border-radius:50%;border:1px solid rgba(91,140,255,.45);animation:ring 2.1s ease-out infinite}
@@ -44,7 +44,7 @@ code,.mono{font-family:var(--mono);font-size:.92em}
 .sp-sub{color:var(--txt3);font-size:12.5px;letter-spacing:.16em;text-transform:uppercase;text-align:center}
 .sp-bar{width:min(260px,60vw);height:3px;border-radius:3px;background:rgba(255,255,255,.1);overflow:hidden}
 .sp-bar i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,#5b8cff,#8b5cf6);
-  animation:fill 1.5s cubic-bezier(.5,.05,.3,1) forwards}
+  animation:fill .75s cubic-bezier(.5,.05,.3,1) forwards}
 @keyframes fill{to{width:100%}}
 .sp-tick{color:var(--txt3);font:500 11.5px var(--mono);height:14px}
 
@@ -65,6 +65,8 @@ code,.mono{font-family:var(--mono);font-size:.92em}
 .pill .dot{width:7px;height:7px;border-radius:50%;background:var(--txt3)}
 .pill.on{color:#bff0d5;border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.12)}
 .pill.on .dot{background:var(--ok);box-shadow:0 0 10px var(--ok)}
+.pill.warn{color:#ffe0b0;border-color:rgba(255,181,69,.4);background:rgba(255,181,69,.1)}
+.pill.warn .dot{background:var(--warn)}
 
 /* ---------------- stepper ---------------- */
 .rail{display:flex;align-items:center;gap:0;margin:18px 0 20px;overflow-x:auto;scrollbar-width:none;padding:2px}
@@ -116,6 +118,7 @@ textarea{min-height:78px;resize:vertical}
   box-shadow:0 12px 26px -12px rgba(91,140,255,.85)}
 .btn.primary:hover{filter:brightness(1.07)}
 .btn.ghost{background:transparent}
+.btn.warn{border-color:rgba(255,181,69,.45);color:#ffe0b0;background:rgba(255,181,69,.12)}
 .btn.danger{border-color:rgba(255,95,95,.45);color:#ffc9c9;background:rgba(255,95,95,.12)}
 .btn:disabled{opacity:.45;cursor:not-allowed}
 
@@ -152,6 +155,7 @@ textarea{min-height:78px;resize:vertical}
 .note.bad{border-color:rgba(255,95,95,.4);background:rgba(255,95,95,.1);color:#ffd5d5}
 .note.ok{border-color:rgba(53,208,127,.4);background:rgba(53,208,127,.1);color:#c8f5dd}
 .note b{color:#fff}
+.resume-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
 .advice{margin-top:14px;border-left:2px solid rgba(91,140,255,.6);padding-left:14px}
 .advice ol{margin:8px 0 0;padding-left:20px;color:var(--txt2);font-size:13px;line-height:1.6}
 .advice ol li{margin-bottom:5px}
@@ -260,7 +264,7 @@ textarea{min-height:78px;resize:vertical}
   </div>
   <div style="text-align:center">
     <div class="sp-name">Repo<b style="color:#fff">Scrape</b> <i>Release</i></div>
-    <div class="sp-sub">bulk github scraper · one file · no install</div>
+    <div class="sp-sub">bulk github scraper · disk-backed · resumable</div>
   </div>
   <div class="sp-bar"><i></i></div>
   <div class="sp-tick" id="spTick">starting…</div>
@@ -277,6 +281,7 @@ textarea{min-height:78px;resize:vertical}
       </div>
       <div class="brand">RepoScrape</div>
       <div class="top-right">
+        <span class="pill on" id="storePill" title="Where scraped files are stored"><span class="dot"></span><span id="storeTxt">Disk storage</span></span>
         <span class="pill" id="buildPill" title="Build">release</span>
         <button class="pill" id="wakeBtn" type="button"><span class="dot"></span><span id="wakeTxt">Wake lock</span></button>
       </div>
@@ -285,6 +290,7 @@ textarea{min-height:78px;resize:vertical}
 
   <div class="rail" id="rail"></div>
   <div id="bootErr" class="note bad hide" style="margin-bottom:14px"></div>
+  <div id="resumeBanner" class="note ok resume-bar hide"></div>
 
   <!-- ---------- STEP 1 : DEVICE ---------- -->
   <section class="stepbox" data-step="1">
@@ -359,19 +365,24 @@ textarea{min-height:78px;resize:vertical}
   <!-- ---------- STEP 4 : FILE / ARCHIVE ---------- -->
   <section class="stepbox hide" data-step="4">
     <h2 class="step">Files &amp; archives</h2>
-    <p class="lead">Everything is built in this tab and handed to you as a download. Choose the container, then set the two limits that decide when it splits or stops.</p>
+    <p class="lead">Scraped files are written straight to disk (OPFS / IndexedDB), not held in RAM, and streamed out one file at a time when packing.</p>
     <div class="fmt-cards" id="fmtCards"></div>
     <div class="g3" style="margin-top:18px">
       <div class="field"><label for="partMB">Max size per archive part</label>
-        <input id="partMB" type="number" min="0" step="10" value="40">
-        <div class="hint">MB. When a part fills, it downloads and a new one starts. 0 = one giant file.</div></div>
+        <input id="partMB" type="number" min="0" step="10" value="250">
+        <div class="hint">MB per part. 0 = one single archive (ZIP64 supports &gt;4 GB).</div></div>
       <div class="field"><label for="maxParts">Max parts</label>
-        <input id="maxParts" type="number" min="1" step="1" value="6">
-        <div class="hint">Downloading stops after this many archives.</div></div>
+        <input id="maxParts" type="number" min="0" step="1" value="0">
+        <div class="hint">0 = unlimited parts. &gt;0 stops exporting after this many parts.</div></div>
       <div class="field"><label for="stopGB">Stop scraping at</label>
-        <input id="stopGB" type="number" min="0" step="0.5" value="2">
-        <div class="hint">GB of raw files collected. Then it stops and moves to download. 0 = never.</div></div>
+        <input id="stopGB" type="number" min="0" step="0.5" value="0">
+        <div class="hint">GB of raw files collected. Then scraping stops. 0 = never.</div></div>
     </div>
+    <div class="sect">Streaming options</div>
+    <div class="chips">
+      <button class="chip" id="autoPartChip" type="button" aria-pressed="false">Auto-download parts &amp; free disk as you scrape</button>
+    </div>
+    <div class="hint" style="margin-top:8px">When enabled with Max size per part &gt; 0, each filled part downloads immediately during the scrape and deletes its temporary disk cache so you can scrape 10+ GB even with low disk space.</div>
     <div class="note" style="margin-top:18px" id="fmtNote"></div>
   </section>
 
@@ -429,7 +440,7 @@ textarea{min-height:78px;resize:vertical}
   <!-- ---------- STEP 7 : THE MAGIC ---------- -->
   <section class="stepbox hide" data-step="7">
     <h2 class="step">The magic</h2>
-    <p class="lead">Files are fetched, de-duplicated and held in memory. Stop at any time — whatever is collected is still yours to download.</p>
+    <p class="lead">Files are written straight to disk (not RAM) and progress saves automatically. Even if you close the tab, reopen it to continue right where you left off.</p>
     <div class="stats">
       <div class="stat"><div class="k">Files</div><div class="v" id="stFiles">0</div></div>
       <div class="stat"><div class="k">Collected</div><div class="v" id="stSize">0<small>B</small></div></div>
@@ -439,11 +450,15 @@ textarea{min-height:78px;resize:vertical}
     <div style="margin-top:16px">
       <div class="prog"><i id="bar"></i></div>
       <div class="now" id="nowLine">idle</div>
+      <div class="hint" id="diskLine" style="margin-top:4px"></div>
     </div>
     <div class="log" id="log" style="margin-top:14px"></div>
     <div class="row" style="margin-top:14px">
       <button class="btn primary" id="btnRun" type="button">Start scraping</button>
+      <button class="btn warn hide" id="btnPause" type="button">Pause &amp; save</button>
       <button class="btn danger hide" id="btnStop" type="button">Stop &amp; download</button>
+      <button class="btn ghost hide" id="btnGoDl" type="button">Go to download →</button>
+      <button class="btn ghost hide" id="btnClearRun" type="button">Start fresh (clear saved)</button>
       <span class="hint" id="runState"></span>
     </div>
   </section>
@@ -451,17 +466,25 @@ textarea{min-height:78px;resize:vertical}
   <!-- ---------- STEP 8 : DOWNLOAD ---------- -->
   <section class="stepbox hide" data-step="8">
     <h2 class="step">Download</h2>
-    <p class="lead">Nothing leaves this page until you press the button. Files are packed in the tab, then saved by your browser.</p>
+    <p class="lead">Archives are streamed straight from disk one file at a time so huge 10 GB+ scrapes never blow up Chrome RAM.</p>
     <div class="stats">
-      <div class="stat"><div class="k">Files</div><div class="v" id="dlFiles">0</div></div>
+      <div class="stat"><div class="k">Files ready</div><div class="v" id="dlFiles">0</div></div>
       <div class="stat"><div class="k">Raw size</div><div class="v" id="dlSize">0<small>B</small></div></div>
       <div class="stat"><div class="k">Repos</div><div class="v" id="dlRepos">0</div></div>
       <div class="stat"><div class="k">Parts</div><div class="v" id="dlParts">1</div></div>
     </div>
     <div class="sect" style="margin-top:20px">Archive format</div>
     <div class="fmt-cards" id="fmtCards2"></div>
+    <div id="dlPartWarn" class="note warn hide" style="margin-top:14px"></div>
+    <div style="margin-top:16px" class="hide" id="dlProgBox">
+      <div class="prog"><i id="dlBar"></i></div>
+      <div class="now" id="dlNow">preparing…</div>
+    </div>
     <div class="row" style="margin-top:18px">
-      <button class="btn primary" id="btnDownload" type="button">Download archive</button>
+      <button class="btn primary" id="btnStreamDisk" type="button">Stream directly to disk (0 MB RAM)</button>
+      <button class="btn" id="btnDownload" type="button">Browser download</button>
+      <button class="btn ghost" id="btnExportFolder" type="button">Export raw folder</button>
+      <button class="btn danger hide" id="btnCancelPack" type="button">Cancel</button>
       <span class="hint" id="dlState"></span>
     </div>
     <div class="note" style="margin-top:16px" id="dlHelp"></div>
@@ -481,7 +504,7 @@ textarea{min-height:78px;resize:vertical}
 
 <script>
 'use strict';
-const BUILD = 'Release 1.0';
+const BUILD = 'Release 2.0';
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -511,12 +534,10 @@ function toast(msg, kind) {
   t.className = 'toast' + (kind ? ' ' + kind : '');
   t.textContent = msg;
   host.appendChild(t);
-  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, 2600);
+  setTimeout(() => { t.style.opacity = '0'; t.style.transition = 'opacity .3s'; setTimeout(() => t.remove(), 320); }, 2800);
 }
 
-/* ---------------- device catalogue ----------------
-   Battery advice is per real OEM skin: Android's own rule ("unrestricted") is
-   not enough on Chinese skins, which each add their own autostart layer.        */
+/* ---------------- device catalogue ---------------- */
 const OS_LIST = [
   { id: 'windows', name: 'Windows 10 / 11', sub: 'PC or laptop', fam: 'Desktop', advice: [
     'Settings → System → Power &amp; battery → <b>Power mode: Best performance</b>.',
@@ -625,25 +646,24 @@ const POWER = {
   mobile: { name: 'phone/tablet battery', advice: 'Phones are the harshest: Doze and OEM cleaners can kill the tab the moment the screen locks.' }
 };
 
-/* archive formats, with honest pros and cons */
 const FORMATS = [
-  { id: 'zip', name: '.zip', what: 'The universal one. Per-file deflate, directory index at the end.',
-    pros: 'Opens on every OS with no extra software; instant random access to one file.',
-    cons: '4 GB and 65,535-entry limits; weaker ratio than 7z; no solid archives.', best: true },
-  { id: '7z', name: '.7z', what: 'LZMA compression in solid blocks — the smallest output.',
-    pros: 'Best compression here, often 20-40% under zip on source code.',
-    cons: 'Needs 7-Zip/PeaZip; solid blocks make single-file extraction slow; slowest to build.', best: false },
+  { id: 'zip', name: '.zip', what: 'Universal archive with automatic ZIP64 for archives over 4 GB or 65,535 files.',
+    pros: 'Opens on every OS; streams straight to disk with ZIP64 so 10+ GB works in one archive.',
+    cons: 'Weaker ratio than 7z on huge text sets; no solid compression across files.', best: true },
+  { id: '7z', name: '.7z', what: '7z container (Copy codec) streamed sequentially straight to disk.',
+    pros: 'Supports huge 64-bit archives natively and preserves exact CRC & timestamps.',
+    cons: 'Uncompressed Copy mode here for streaming speed; needs 7-Zip/PeaZip to unpack.', best: false },
   { id: 'tar', name: '.tar', what: 'No compression at all — files concatenated with 512-byte headers.',
-    pros: 'Fastest to build, perfect fidelity, streams anywhere; good for re-packing later.',
+    pros: 'Fastest to stream, perfect fidelity, 0 RAM overhead; great for re-packing later.',
     cons: 'Biggest output; Windows needs 7-Zip or tar.exe to open it.', best: false },
-  { id: 'zip.gz', name: '.zip.gz', what: 'A finished .zip, then gzipped.',
-    pros: 'Occasionally shrinks .zip a further few percent; fine if you pipe it around.',
+  { id: 'zip.gz', name: '.zip.gz', what: 'A streamed .zip piped through gzip.',
+    pros: 'Occasionally shrinks .zip slightly more; streams in constant memory.',
     cons: 'Double wrapping: gunzip, then unzip. Confusing for anyone you send it to.', best: false },
-  { id: '7z.gz', name: '.7z.gz', what: 'A finished .7z, then gzipped.',
-    pros: 'Almost nothing — 7z is already compressed.',
-    cons: 'Pure overhead: two steps to open, no meaningful size gain.', best: false },
-  { id: 'tar.gz', name: '.tar.gz', what: 'tar streamed through gzip (deflate). The Unix classic.',
-    pros: 'Native on every Linux and macOS box, streams well, one command to unpack.',
+  { id: '7z.gz', name: '.7z.gz', what: 'A streamed .7z piped through gzip.',
+    pros: 'Compresses the raw 7z Copy stream solidly with constant low RAM.',
+    cons: 'Two steps to extract (gunzip, then 7-Zip) compared to .tar.gz.', best: false },
+  { id: 'tar.gz', name: '.tar.gz', what: 'tar streamed live through gzip (deflate). The Unix classic.',
+    pros: 'Native on Linux and macOS, streams 10+ GB cleanly in constant RAM, one command to unpack.',
     cons: 'No random access inside; single-threaded gzip; Windows needs 7-Zip or tar.exe.', best: true }
 ];
 
@@ -656,21 +676,26 @@ const PRESETS = {
   Data: ['json','csv','yml','yaml','xml','txt']
 };
 
-/* ---------------- persisted state ---------------- */
+/* ---------------- persisted config ---------------- */
 const LS = 'reposcrape.release.v1';
 const S = {
   os: null, power: null, queries: [], pat: '', maxPages: 5, sort: 'best', forks: false, archived: false, maxRepos: 300,
-  format: 'zip', partMB: 40, maxParts: 6, stopGB: 2,
+  format: 'zip', partMB: 250, maxParts: 0, stopGB: 0, autoPart: false,
   exts: new Set(['html','css','js','json']), custom: '', dup: false, allowExt: true, skipBlank: true,
   minKB: 0, maxKB: 4096, maxFilesRepo: 400, excludeDirs: 'node_modules,.git,dist,build,vendor,target,.next',
-  repos: [], picked: new Set(), files: [], stats: { files: 0, bytes: 0, repos: 0, skipped: 0 }
+  repos: [], picked: new Set(),
+  completedRepos: new Set(), inProgressRepo: null,
+  stats: { files: 0, bytes: 0, repos: 0, skipped: 0 },
+  unpackedFiles: 0, unpackedBytes: 0, partsDownloaded: 0,
+  scrapeStatus: 'idle', logs: [], restoredBanner: null
 };
+
 function save() {
   try {
     localStorage.setItem(LS, JSON.stringify({
       os: S.os, power: S.power, queries: S.queries, pat: S.pat, maxPages: S.maxPages, sort: S.sort,
       forks: S.forks, archived: S.archived, maxRepos: S.maxRepos, format: S.format, partMB: S.partMB,
-      maxParts: S.maxParts, stopGB: S.stopGB, exts: Array.from(S.exts), custom: S.custom, dup: S.dup,
+      maxParts: S.maxParts, stopGB: S.stopGB, autoPart: S.autoPart, exts: Array.from(S.exts), custom: S.custom, dup: S.dup,
       allowExt: S.allowExt, skipBlank: S.skipBlank, minKB: S.minKB, maxKB: S.maxKB,
       maxFilesRepo: S.maxFilesRepo, excludeDirs: S.excludeDirs
     }));
@@ -697,6 +722,10 @@ const Wake = {
     else { this.want = true; try { this.sent = await navigator.wakeLock.request('screen'); } catch (e) { this.want = false; toast('Wake lock refused: ' + e.message, 'bad'); } }
     this.paint();
   },
+  async ensure() {
+    if (!('wakeLock' in navigator) || this.sent) return;
+    try { this.want = true; this.sent = await navigator.wakeLock.request('screen'); this.paint(); } catch (e) { this.want = false; }
+  },
   async reacquire() { if (this.want && !this.sent) { try { this.sent = await navigator.wakeLock.request('screen'); this.paint(); } catch (e) {} } },
   paint() {
     const on = !!(this.want && this.sent);
@@ -705,8 +734,1165 @@ const Wake = {
     const t = $('#wakeTxt'); if (t) t.textContent = on ? 'Screen held' : 'Wake lock';
   }
 };
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') Wake.reacquire(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') Wake.reacquire();
+  else if (typeof DISK !== 'undefined' && DISK.ready) { saveSessionNow(true); DISK.flush(); }
+});
+window.addEventListener('pagehide', () => {
+  if (typeof DISK !== 'undefined' && DISK.ready) { saveSessionNow(true); DISK.flush(); }
+});
+</script>
 
+<script>
+/* ============================================================
+   Compact Bloom Filter (4 MB flat Uint8Array -> 0 GC, caps dedup RAM forever)
+   ============================================================ */
+class BloomFilter {
+  constructor(byteSize, bytes) {
+    this.byteSize = byteSize || (4 * 1024 * 1024);
+    this.bits = this.byteSize * 8;
+    this.buf = bytes && bytes.length === this.byteSize ? bytes : new Uint8Array(this.byteSize);
+  }
+  _probes(str) {
+    let h1 = 0x811c9dc5 >>> 0, h2 = 0x9e3779b9 >>> 0;
+    for (let i = 0; i < str.length; i++) {
+      const c = str.charCodeAt(i);
+      h1 ^= c; h1 = Math.imul(h1, 0x01000193) >>> 0;
+      h2 = Math.imul(h2 ^ (c + i), 0x85ebca6b) >>> 0;
+    }
+    const mask = this.bits - 1;
+    const p0 = h1 & mask;
+    const p1 = (h1 + h2) & mask;
+    const p2 = (h1 + Math.imul(h2, 2)) & mask;
+    const p3 = (h1 + Math.imul(h2, 3)) & mask;
+    return [p0, p1, p2, p3];
+  }
+  has(str) {
+    const p = this._probes(str);
+    return ((this.buf[p[0] >>> 3] >>> (p[0] & 7)) & 1) &&
+           ((this.buf[p[1] >>> 3] >>> (p[1] & 7)) & 1) &&
+           ((this.buf[p[2] >>> 3] >>> (p[2] & 7)) & 1) &&
+           ((this.buf[p[3] >>> 3] >>> (p[3] & 7)) & 1);
+  }
+  add(str) {
+    const p = this._probes(str);
+    for (let i = 0; i < 4; i++) this.buf[p[i] >>> 3] |= (1 << (p[i] & 7));
+  }
+  clear() { this.buf.fill(0); }
+}
+
+/* ============================================================
+   Disk Storage Engine (OPFS pack worker -> IDB Blobs -> RAM fallback)
+   ============================================================ */
+const DISK = (() => {
+  const DB_NAME = 'RepoScrapeDB';
+  const DB_VER = 2;
+  let db = null;
+  let worker = null;
+  let workerUrl = null;
+  let mode = 'ram'; // 'opfs' | 'idb' | 'ram'
+  let msgSeq = 1;
+  const pending = new Map();
+  const ramBlobs = new Map();
+  const ramSeen = new Set();
+  const ramFiles = [];
+  let ramSeq = 1;
+
+  const WORKER_SRC = `
+'use strict';
+let packDir = null, dlDir = null;
+let writePack = 0, writeHandle = null, writeOffset = 0;
+const PACK_CAP = 256 * 1024 * 1024;
+const readHandles = new Map();
+const dlHandles = new Map();
+
+async function ensureDirs() {
+  const root = await navigator.storage.getDirectory();
+  if (!packDir) packDir = await root.getDirectoryHandle('reposcrape-packs', { create: true });
+  if (!dlDir) dlDir = await root.getDirectoryHandle('reposcrape-dl', { create: true });
+}
+async function openWritePack(idx) {
+  if (writeHandle && writePack === idx) return writeHandle;
+  if (writeHandle) { try { writeHandle.flush(); writeHandle.close(); } catch (e) {} writeHandle = null; }
+  if (readHandles.has(idx)) { try { readHandles.get(idx).close(); } catch (e) {} readHandles.delete(idx); }
+  await ensureDirs();
+  const fh = await packDir.getFileHandle('pack_' + idx + '.bin', { create: true });
+  writeHandle = await fh.createSyncAccessHandle();
+  writePack = idx;
+  writeOffset = writeHandle.getSize();
+  return writeHandle;
+}
+async function getReadHandle(idx) {
+  if (writeHandle && writePack === idx) return writeHandle;
+  if (readHandles.has(idx)) return readHandles.get(idx);
+  if (readHandles.size >= 4) {
+    const first = readHandles.keys().next().value;
+    try { readHandles.get(first).close(); } catch (e) {}
+    readHandles.delete(first);
+  }
+  await ensureDirs();
+  const fh = await packDir.getFileHandle('pack_' + idx + '.bin', { create: false });
+  const h = await fh.createSyncAccessHandle();
+  readHandles.set(idx, h);
+  return h;
+}
+async function handle(m) {
+  if (m.op === 'init') {
+    await ensureDirs();
+    const fh = await packDir.getFileHandle('_probe.tmp', { create: true });
+    const h = await fh.createSyncAccessHandle();
+    h.close();
+    try { await packDir.removeEntry('_probe.tmp'); } catch (e) {}
+    writePack = m.startPack || 0;
+    return { ok: true };
+  }
+  if (m.op === 'put') {
+    const u8 = new Uint8Array(m.buf);
+    if (!writeHandle) await openWritePack(writePack);
+    if (writeOffset > 0 && writeOffset + u8.byteLength > PACK_CAP) {
+      await openWritePack(writePack + 1);
+    }
+    const off = writeOffset;
+    const written = writeHandle.write(u8, { at: off });
+    writeOffset += written;
+    return { pack: writePack, offset: off, size: written };
+  }
+  if (m.op === 'get') {
+    const h = await getReadHandle(m.pack);
+    const buf = new Uint8Array(m.size);
+    const n = h.read(buf, { at: m.offset });
+    const out = n === m.size ? buf : buf.subarray(0, n);
+    return { __xfer: [out.buffer], buf: out.buffer, byteOffset: out.byteOffset, byteLength: out.byteLength };
+  }
+  if (m.op === 'flush') {
+    if (writeHandle) writeHandle.flush();
+    return { ok: true };
+  }
+  if (m.op === 'delPack') {
+    if (writeHandle && writePack === m.pack) { try { writeHandle.close(); } catch (e) {} writeHandle = null; writeOffset = 0; }
+    if (readHandles.has(m.pack)) { try { readHandles.get(m.pack).close(); } catch (e) {} readHandles.delete(m.pack); }
+    await ensureDirs();
+    try { await packDir.removeEntry('pack_' + m.pack + '.bin'); } catch (e) {}
+    return { ok: true };
+  }
+  if (m.op === 'dlOpen') {
+    await ensureDirs();
+    try { await dlDir.removeEntry(m.name); } catch (e) {}
+    const fh = await dlDir.getFileHandle(m.name, { create: true });
+    const h = await fh.createSyncAccessHandle();
+    dlHandles.set(m.token, { h, name: m.name, off: 0 });
+    return { ok: true };
+  }
+  if (m.op === 'dlWrite') {
+    const d = dlHandles.get(m.token);
+    if (!d) throw new Error('dl handle closed');
+    const u8 = new Uint8Array(m.buf);
+    const n = d.h.write(u8, { at: d.off });
+    d.off += n;
+    return { size: d.off };
+  }
+  if (m.op === 'dlReadAll') {
+    const d = dlHandles.get(m.token);
+    if (!d) throw new Error('dl handle closed');
+    return { size: d.off };
+  }
+  if (m.op === 'dlCopyTo') {
+    const src = dlHandles.get(m.srcToken);
+    const dst = dlHandles.get(m.dstToken);
+    if (!src || !dst) throw new Error('dl handle closed');
+    const CHUNK = 1024 * 1024;
+    const tmp = new Uint8Array(CHUNK);
+    let pos = 0;
+    while (pos < src.off) {
+      const len = Math.min(CHUNK, src.off - pos);
+      const n = src.h.read(tmp.subarray(0, len), { at: pos });
+      if (n <= 0) break;
+      dst.h.write(tmp.subarray(0, n), { at: dst.off });
+      dst.off += n;
+      pos += n;
+    }
+    return { copied: pos };
+  }
+  if (m.op === 'dlClose') {
+    const d = dlHandles.get(m.token);
+    if (d) { try { d.h.flush(); d.h.close(); } catch (e) {} dlHandles.delete(m.token); }
+    return { ok: true };
+  }
+  if (m.op === 'dlDelete') {
+    const d = dlHandles.get(m.token);
+    if (d) { try { d.h.close(); } catch (e) {} dlHandles.delete(m.token); }
+    await ensureDirs();
+    if (m.name) { try { await dlDir.removeEntry(m.name); } catch (e) {} }
+    return { ok: true };
+  }
+  if (m.op === 'clearAll') {
+    if (writeHandle) { try { writeHandle.close(); } catch (e) {} writeHandle = null; writeOffset = 0; writePack = 0; }
+    for (const h of readHandles.values()) { try { h.close(); } catch (e) {} }
+    readHandles.clear();
+    for (const d of dlHandles.values()) { try { d.h.close(); } catch (e) {} }
+    dlHandles.clear();
+    await ensureDirs();
+    for await (const [k] of packDir.entries()) { try { await packDir.removeEntry(k); } catch (e) {} }
+    for await (const [k] of dlDir.entries()) { try { await dlDir.removeEntry(k); } catch (e) {} }
+    return { ok: true };
+  }
+  if (m.op === 'clearDl') {
+    await ensureDirs();
+    for await (const [k] of dlDir.entries()) { if (!dlHandles.has(k)) { try { await dlDir.removeEntry(k); } catch (e) {} } }
+    return { ok: true };
+  }
+  throw new Error('Unknown op: ' + m.op);
+}
+let q = Promise.resolve();
+self.onmessage = (ev) => {
+  const m = ev.data;
+  q = q.then(() => handle(m)).then((res) => {
+    const xfer = res && res.__xfer;
+    if (xfer) delete res.__xfer;
+    self.postMessage({ id: m.id, res }, xfer || []);
+  }).catch((err) => {
+    self.postMessage({ id: m.id, err: (err && err.message) || String(err) });
+  });
+};`;
+
+  function rpc(msg, xfer, timeoutMs) {
+    return new Promise((resolve, reject) => {
+      if (!worker) return reject(new Error('No OPFS worker'));
+      const id = msgSeq++;
+      let timer = null;
+      if (timeoutMs) {
+        timer = setTimeout(() => { pending.delete(id); reject(new Error('OPFS timeout')); }, timeoutMs);
+      }
+      pending.set(id, {
+        resolve: (v) => { if (timer) clearTimeout(timer); resolve(v); },
+        reject: (e) => { if (timer) clearTimeout(timer); reject(e); }
+      });
+      worker.postMessage(Object.assign({ id }, msg), xfer || []);
+    });
+  }
+
+  function openIDB() {
+    return new Promise((resolve, reject) => {
+      if (typeof indexedDB === 'undefined') return reject(new Error('No IndexedDB'));
+      const req = indexedDB.open(DB_NAME, DB_VER);
+      req.onupgradeneeded = () => {
+        const d = req.result;
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
+        if (!d.objectStoreNames.contains('files')) {
+          const fs = d.createObjectStore('files', { keyPath: 'seq', autoIncrement: true });
+          fs.createIndex('by_repo', 'repo', { unique: false });
+          fs.createIndex('by_repo_path', 'repoPath', { unique: false });
+        }
+        if (!d.objectStoreNames.contains('blobs')) d.createObjectStore('blobs');
+        if (!d.objectStoreNames.contains('seen')) d.createObjectStore('seen', { keyPath: 'h' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error || new Error('IndexedDB blocked'));
+    });
+  }
+
+  function idbTx(stores, txMode, fn) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(stores, txMode);
+      let out;
+      tx.oncomplete = () => resolve(out);
+      tx.onerror = () => reject(tx.error || new Error('IDB tx error'));
+      tx.onabort = () => reject(tx.error || new Error('IDB tx aborted'));
+      out = fn(tx);
+    });
+  }
+  function reqP(r) {
+    return new Promise((res, rej) => { r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); });
+  }
+
+  function toTransferable(u8) {
+    if (u8.byteOffset === 0 && u8.byteLength === u8.buffer.byteLength) return u8.slice().buffer;
+    return u8.slice().buffer;
+  }
+
+  const bloom = new BloomFilter(4 * 1024 * 1024);
+
+  return {
+    ready: false,
+    bloom,
+    get mode() { return mode; },
+    async init() {
+      // 1. Open IndexedDB for metadata + session + bloom + fallback blobs
+      try {
+        db = await openIDB();
+        mode = 'idb';
+      } catch (e) {
+        db = null;
+        mode = 'ram';
+      }
+
+      // 2. Request persistent storage silently
+      try {
+        if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+      } catch (e) {}
+
+      // 3. Determine highest OPFS pack index if resuming
+      let startPack = 0;
+      if (db) {
+        try {
+          await idbTx(['files'], 'readonly', (tx) => {
+            const st = tx.objectStore('files');
+            st.openCursor(null, 'prev').onsuccess = (ev) => {
+              const c = ev.target.result;
+              if (c && c.value && c.value.loc && c.value.loc.kind === 'opfs') startPack = c.value.loc.pack || 0;
+            };
+          });
+        } catch (e) {}
+      }
+
+      // 4. Try OPFS Worker for zero-RAM high-speed disk packs
+      try {
+        if (db && typeof Worker !== 'undefined' && navigator.storage && navigator.storage.getDirectory) {
+          workerUrl = URL.createObjectURL(new Blob([WORKER_SRC], { type: 'application/javascript' }));
+          worker = new Worker(workerUrl);
+          worker.onmessage = (ev) => {
+            const { id, res, err } = ev.data || {};
+            const p = pending.get(id);
+            if (!p) return;
+            pending.delete(id);
+            if (err) p.reject(new Error(err)); else p.resolve(res);
+          };
+          worker.onerror = () => {};
+          await rpc({ op: 'init', startPack }, [], 2000);
+          mode = 'opfs';
+          rpc({ op: 'clearDl' }).catch(() => {});
+        }
+      } catch (e) {
+        if (worker) { try { worker.terminate(); } catch (_) {} worker = null; }
+        if (workerUrl) { try { URL.revokeObjectURL(workerUrl); } catch (_) {} workerUrl = null; }
+      }
+
+      // 5. Restore Bloom filter from IDB if present
+      if (db) {
+        try {
+          const rec = await idbTx(['meta'], 'readonly', (tx) => reqP(tx.objectStore('meta').get('bloom')));
+          if (rec && rec.bytes && rec.bytes.length === bloom.byteSize) {
+            bloom.buf.set(rec.bytes);
+          } else {
+            // Rebuild bloom from seen store if needed
+            await idbTx(['seen'], 'readonly', (tx) => {
+              tx.objectStore('seen').openKeyCursor().onsuccess = (ev) => {
+                const c = ev.target.result;
+                if (c) { bloom.add(c.key); c.continue(); }
+              };
+            });
+          }
+        } catch (e) {}
+      }
+
+      this.ready = true;
+      return mode;
+    },
+
+    async hasSeen(hash) {
+      if (!bloom.has(hash)) return false;
+      if (db) {
+        const hit = await idbTx(['seen'], 'readonly', (tx) => reqP(tx.objectStore('seen').getKey(hash)));
+        return hit !== undefined;
+      }
+      return ramSeen.has(hash);
+    },
+
+    async saveFile({ repo, path, size, crc, dateMs, hash, bytes }) {
+      let loc;
+      if (mode === 'opfs') {
+        const buf = toTransferable(bytes);
+        const res = await rpc({ op: 'put', buf }, [buf]);
+        loc = { kind: 'opfs', pack: res.pack, offset: res.offset, size: res.size };
+      } else if (mode === 'idb') {
+        const blob = new Blob([bytes]);
+        loc = { kind: 'idb' };
+        let seqOut = null;
+        await idbTx(['files', 'blobs', 'seen'], 'readwrite', (tx) => {
+          const fReq = tx.objectStore('files').add({
+            repo, path, repoPath: repo + '\0' + path, size, crc, dateMs, packed: false, loc
+          });
+          fReq.onsuccess = () => {
+            seqOut = fReq.result;
+            tx.objectStore('blobs').put(blob, seqOut);
+          };
+          if (hash) tx.objectStore('seen').put({ h: hash });
+        });
+        if (hash) bloom.add(hash);
+        return seqOut;
+      } else {
+        const id = ramSeq++;
+        ramBlobs.set(id, bytes.slice());
+        const rec = { seq: id, repo, path, repoPath: repo + '\0' + path, size, crc, dateMs, packed: false, loc: { kind: 'ram', id } };
+        ramFiles.push(rec);
+        if (hash) { ramSeen.add(hash); bloom.add(hash); }
+        return id;
+      }
+
+      // OPFS metadata + seen transaction
+      let seqOut = null;
+      await idbTx(['files', 'seen'], 'readwrite', (tx) => {
+        const fReq = tx.objectStore('files').add({
+          repo, path, repoPath: repo + '\0' + path, size, crc, dateMs, packed: false, loc
+        });
+        fReq.onsuccess = () => { seqOut = fReq.result; };
+        if (hash) tx.objectStore('seen').put({ h: hash });
+      });
+      if (hash) bloom.add(hash);
+      return seqOut;
+    },
+
+    async readFileBytes(meta) {
+      const loc = meta.loc || {};
+      if (loc.kind === 'opfs') {
+        if (!meta.size) return new Uint8Array(0);
+        const r = await rpc({ op: 'get', pack: loc.pack, offset: loc.offset, size: loc.size });
+        return new Uint8Array(r.buf, r.byteOffset, r.byteLength);
+      }
+      if (loc.kind === 'idb') {
+        const blob = await idbTx(['blobs'], 'readonly', (tx) => reqP(tx.objectStore('blobs').get(meta.seq)));
+        if (!blob) return new Uint8Array(0);
+        return new Uint8Array(await blob.arrayBuffer());
+      }
+      return ramBlobs.get(loc.id) || new Uint8Array(0);
+    },
+
+    async getRepoPaths(repoFull) {
+      const set = new Set();
+      if (db) {
+        await idbTx(['files'], 'readonly', (tx) => {
+          const idx = tx.objectStore('files').index('by_repo');
+          idx.openCursor(IDBKeyRange.only(repoFull)).onsuccess = (ev) => {
+            const c = ev.target.result;
+            if (c) { set.add(c.value.path); c.continue(); }
+          };
+        });
+      } else {
+        ramFiles.forEach(f => { if (f.repo === repoFull) set.add(f.path); });
+      }
+      return set;
+    },
+
+    async getPartsMeta(partMB, includePacked) {
+      const cap = (Number(partMB) || 0) * 1024 * 1024;
+      const parts = [];
+      let cur = null;
+      let totalFiles = 0, totalBytes = 0;
+
+      const pushRec = (f) => {
+        if (!includePacked && f.packed) return;
+        totalFiles++; totalBytes += f.size;
+        if (!cur) cur = { index: parts.length, startSeq: f.seq, endSeq: f.seq, count: 0, bytes: 0 };
+        if (cap > 0 && cur.bytes + f.size > cap && cur.count > 0) {
+          parts.push(cur);
+          cur = { index: parts.length, startSeq: f.seq, endSeq: f.seq, count: 0, bytes: 0 };
+        }
+        cur.endSeq = f.seq;
+        cur.count++;
+        cur.bytes += f.size;
+      };
+
+      if (db) {
+        await idbTx(['files'], 'readonly', (tx) => {
+          tx.objectStore('files').openCursor().onsuccess = (ev) => {
+            const c = ev.target.result;
+            if (c) { pushRec(c.value); c.continue(); }
+          };
+        });
+      } else {
+        ramFiles.forEach(pushRec);
+      }
+      if (cur && cur.count) parts.push(cur);
+      return { parts, totalFiles, totalBytes };
+    },
+
+    async forEachInRange(startSeq, endSeq, unpackedOnly, fn) {
+      const BATCH = 250;
+      let cursorStart = startSeq;
+      while (cursorStart <= endSeq) {
+        const batch = [];
+        if (db) {
+          await idbTx(['files'], 'readonly', (tx) => {
+            const range = IDBKeyRange.bound(cursorStart, endSeq);
+            tx.objectStore('files').openCursor(range).onsuccess = (ev) => {
+              const c = ev.target.result;
+              if (!c) return;
+              if (!unpackedOnly || !c.value.packed) batch.push(c.value);
+              if (batch.length < BATCH) c.continue();
+              else cursorStart = c.key + 1;
+            };
+          });
+          if (!batch.length) break;
+          if (batch.length < BATCH) cursorStart = endSeq + 1;
+        } else {
+          for (const f of ramFiles) {
+            if (f.seq >= cursorStart && f.seq <= endSeq && (!unpackedOnly || !f.packed)) batch.push(f);
+          }
+          cursorStart = endSeq + 1;
+        }
+        for (const rec of batch) await fn(rec);
+      }
+    },
+
+    async markPackedAndPrune(startSeq, endSeq) {
+      const touchedPacks = new Set();
+      if (db) {
+        await idbTx(['files', 'blobs'], 'readwrite', (tx) => {
+          const fs = tx.objectStore('files');
+          const bs = tx.objectStore('blobs');
+          fs.openCursor(IDBKeyRange.bound(startSeq, endSeq)).onsuccess = (ev) => {
+            const c = ev.target.result;
+            if (!c) return;
+            const v = c.value;
+            if (!v.packed) {
+              v.packed = true;
+              if (v.loc && v.loc.kind === 'opfs') touchedPacks.add(v.loc.pack);
+              else if (v.loc && v.loc.kind === 'idb') bs.delete(v.seq);
+              c.update(v);
+            }
+            c.continue();
+          };
+        });
+        if (mode === 'opfs' && touchedPacks.size) {
+          const stillUsed = new Set();
+          await idbTx(['files'], 'readonly', (tx) => {
+            tx.objectStore('files').openCursor().onsuccess = (ev) => {
+              const c = ev.target.result;
+              if (!c) return;
+              const v = c.value;
+              if (!v.packed && v.loc && v.loc.kind === 'opfs') stillUsed.add(v.loc.pack);
+              c.continue();
+            };
+          });
+          for (const p of touchedPacks) {
+            if (!stillUsed.has(p)) await rpc({ op: 'delPack', pack: p }).catch(() => {});
+          }
+        }
+      } else {
+        ramFiles.forEach(f => {
+          if (f.seq >= startSeq && f.seq <= endSeq) {
+            f.packed = true;
+            if (f.loc) ramBlobs.delete(f.loc.id);
+          }
+        });
+      }
+    },
+
+    async saveSession(sessionObj, withBloom) {
+      if (!db) return;
+      try {
+        await idbTx(['meta'], 'readwrite', (tx) => {
+          const m = tx.objectStore('meta');
+          m.put({ k: 'session', data: sessionObj });
+          if (withBloom) m.put({ k: 'bloom', bytes: bloom.buf });
+        });
+      } catch (e) {}
+    },
+
+    async loadSession() {
+      if (!db) return null;
+      try {
+        const rec = await idbTx(['meta'], 'readonly', (tx) => reqP(tx.objectStore('meta').get('session')));
+        return rec ? rec.data : null;
+      } catch (e) { return null; }
+    },
+
+    async flush() {
+      if (mode === 'opfs') { try { await rpc({ op: 'flush' }); } catch (e) {} }
+    },
+
+    async clearAll() {
+      bloom.clear();
+      ramBlobs.clear(); ramSeen.clear(); ramFiles.length = 0; ramSeq = 1;
+      if (mode === 'opfs') { try { await rpc({ op: 'clearAll' }); } catch (e) {} }
+      if (db) {
+        await idbTx(['meta', 'files', 'blobs', 'seen'], 'readwrite', (tx) => {
+          tx.objectStore('meta').clear();
+          tx.objectStore('files').clear();
+          tx.objectStore('blobs').clear();
+          tx.objectStore('seen').clear();
+        });
+      }
+    },
+
+    async estimate() {
+      try {
+        if (navigator.storage && navigator.storage.estimate) {
+          const e = await navigator.storage.estimate();
+          return { usage: e.usage || 0, quota: e.quota || 0 };
+        }
+      } catch (e) {}
+      return null;
+    },
+
+    // Streaming download staging in OPFS (for Browser Download without holding archive in RAM)
+    async createOpfsDlSink(name) {
+      if (mode !== 'opfs') return null;
+      const token = 'dl_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      const fname = '_dl_' + token + '_' + name.replace(/[^A-Za-z0-9._-]/g, '_');
+      await rpc({ op: 'dlOpen', token, name: fname });
+      return {
+        token, fname,
+        async write(u8) {
+          if (!u8 || !u8.length) return;
+          const buf = toTransferable(u8);
+          await rpc({ op: 'dlWrite', token, buf }, [buf]);
+        },
+        async copyFromSink(otherSink) {
+          await rpc({ op: 'dlCopyTo', srcToken: otherSink.token, dstToken: token });
+        },
+        async finishToFile() {
+          await rpc({ op: 'dlClose', token });
+          const root = await navigator.storage.getDirectory();
+          const dlDir = await root.getDirectoryHandle('reposcrape-dl');
+          const fh = await dlDir.getFileHandle(fname);
+          return await fh.getFile(); // Disk-backed File (0 MB RAM)
+        },
+        async close() { await rpc({ op: 'dlClose', token }); },
+        async abort() { await rpc({ op: 'dlDelete', token, name: fname }).catch(() => {}); },
+        async cleanup() { await rpc({ op: 'dlDelete', token, name: fname }).catch(() => {}); }
+      };
+    }
+  };
+})();
+</script>
+
+<script>
+const ARCH = (() => {
+
+  const enc = new TextEncoder();
+  let lastYield = 0;
+  async function maybeYield() {
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (now - lastYield > 20) {
+      lastYield = now;
+      await new Promise(r => setTimeout(r, 0));
+    }
+  }
+
+  /* ---------------- byte helpers ---------------- */
+  function bytesConcat(parts) {
+    let total = 0;
+    for (const p of parts) total += p.length;
+    const out = new Uint8Array(total);
+    let o = 0;
+    for (const p of parts) { out.set(p, o); o += p.length; }
+    return out;
+  }
+  const utf8 = (s) => enc.encode(s);
+  function put16(b, o, n) { b[o] = n & 255; b[o + 1] = (n >>> 8) & 255; }
+  function put32(b, o, n) { n = n >>> 0; b[o] = n & 255; b[o + 1] = (n >>> 8) & 255; b[o + 2] = (n >>> 16) & 255; b[o + 3] = (n >>> 24) & 255; }
+  function put64(b, o, v) {
+    let n = typeof v === 'bigint' ? v : BigInt(Math.round(v));
+    for (let i = 0; i < 8; i++) { b[o + i] = Number(n & 255n); n >>= 8n; }
+  }
+  function le16(n) { return [n & 255, (n >>> 8) & 255]; }
+  function le32(n) { n = n >>> 0; return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
+  function le64big(v) {
+    let n = typeof v === 'bigint' ? v : BigInt(Math.round(v)), out = [];
+    for (let i = 0; i < 8; i++) { out.push(Number(n & 255n)); n >>= 8n; }
+    return out;
+  }
+
+  /* ---------------- CRC-32 (IEEE) ---------------- */
+  const CRC_TABLE = (() => {
+    const t = new Uint32Array(256);
+    for (let i = 0; i < 256; i++) {
+      let c = i;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[i] = c >>> 0;
+    }
+    return t;
+  })();
+  function crc32(bytes, seed) {
+    let c = (seed === undefined ? 0 : seed) ^ 0xFFFFFFFF;
+    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
+    return (c ^ 0xFFFFFFFF) >>> 0;
+  }
+
+  /* ---------------- compression primitives ---------------- */
+  const hasCS = (fmt) => { try { new CompressionStream(fmt); return true; } catch (e) { return false; } };
+  async function compress(fmt, bytes) {
+    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream(fmt));
+    return new Uint8Array(await new Response(stream).arrayBuffer());
+  }
+  async function deflateRaw(bytes) { return compress('deflate-raw', bytes); }
+  async function gzipBytes(bytes) { return compress('gzip', bytes); }
+
+  function createGzipSink(targetSink) {
+    const cs = new CompressionStream('gzip');
+    const writer = cs.writable.getWriter();
+    const reader = cs.readable.getReader();
+    let pumpErr = null;
+    const pump = (async () => {
+      try {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          await targetSink.write(value);
+        }
+      } catch (e) {
+        pumpErr = e;
+        throw e;
+      }
+    })();
+    return {
+      async write(chunk) {
+        if (pumpErr) throw pumpErr;
+        if (chunk && chunk.length) await writer.write(chunk);
+      },
+      async close() {
+        await writer.close();
+        await pump;
+        if (targetSink.close) await targetSink.close();
+      },
+      async abort(err) {
+        try { await writer.abort(err); } catch (e) {}
+        try { if (targetSink.abort) await targetSink.abort(err); } catch (e) {}
+      }
+    };
+  }
+
+  function createMemorySink() {
+    const chunks = [];
+    return {
+      chunks,
+      async write(u8) { if (u8 && u8.length) chunks.push(u8.slice ? u8.slice() : new Uint8Array(u8)); },
+      async close() {},
+      result() { return bytesConcat(chunks); }
+    };
+  }
+
+  /* ============================================================
+     STREAMING ZIP + ZIP64
+     (Writes local headers + payloads sequentially; spills Central
+      Directory into slabs / optional cdSink -> supports 10GB+ & >65,535 files)
+     ============================================================ */
+  function dosDateTime(d) {
+    const yr = Math.max(1980, d.getFullYear());
+    return {
+      time: ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | ((Math.floor(d.getSeconds() / 2)) & 31),
+      date: (((yr - 1980) & 127) << 9) | (((d.getMonth() + 1) & 15) << 5) | (d.getDate() & 31)
+    };
+  }
+
+  async function streamZip(totalCount, iterateEntries, sink, onProgress, isCancelled, cdSink) {
+    const compressOK = hasCS('deflate-raw');
+    const cdSlabs = [];
+    let slab = new Uint8Array(256 * 1024);
+    let slabPos = 0;
+
+    async function flushSlab() {
+      if (!slabPos) return;
+      const chunk = slab.subarray(0, slabPos);
+      if (cdSink) await cdSink.write(chunk);
+      else cdSlabs.push(chunk.slice());
+      slabPos = 0;
+    }
+    async function appendCd(rec) {
+      if (rec.length > slab.length) {
+        await flushSlab();
+        if (cdSink) await cdSink.write(rec);
+        else cdSlabs.push(rec);
+        return;
+      }
+      if (slabPos + rec.length > slab.length) await flushSlab();
+      slab.set(rec, slabPos);
+      slabPos += rec.length;
+    }
+
+    let offset = 0, cdSize = 0, count = 0;
+    await iterateEntries(async (e) => {
+      if (isCancelled && isCancelled()) throw new Error('Cancelled');
+      const name = utf8(e.path);
+      const raw = e.data || await e.readData();
+      const rawLen = raw.length;
+      const dt = dosDateTime(e.date || new Date(e.dateMs || Date.now()));
+      const crc = e.crc !== undefined ? (e.crc >>> 0) : crc32(raw);
+
+      let method = 0, body = raw;
+      if (compressOK && rawLen > 180) {
+        const def = await deflateRaw(raw);
+        if (def.length < rawLen) { method = 8; body = def; }
+      }
+      const bodyLen = body.length;
+
+      const needZip64Sizes = rawLen >= 0xFFFFFFFF || bodyLen >= 0xFFFFFFFF;
+      const needZip64Off = offset >= 0xFFFFFFFF;
+      const entryZip64 = needZip64Sizes || needZip64Off;
+
+      // Local File Header
+      const lfhExtraLen = needZip64Sizes ? 20 : 0;
+      const head = new Uint8Array(30 + name.length + lfhExtraLen);
+      put32(head, 0, 0x04034b50);
+      put16(head, 4, needZip64Sizes ? 45 : 20);
+      put16(head, 6, 0x0800);
+      put16(head, 8, method);
+      put16(head, 10, dt.time);
+      put16(head, 12, dt.date);
+      put32(head, 14, crc);
+      put32(head, 18, needZip64Sizes ? 0xFFFFFFFF : bodyLen);
+      put32(head, 22, needZip64Sizes ? 0xFFFFFFFF : rawLen);
+      put16(head, 26, name.length);
+      put16(head, 28, lfhExtraLen);
+      head.set(name, 30);
+      if (needZip64Sizes) {
+        const ex = 30 + name.length;
+        put16(head, ex, 0x0001);
+        put16(head, ex + 2, 16);
+        put64(head, ex + 4, rawLen);
+        put64(head, ex + 12, bodyLen);
+      }
+
+      await sink.write(head);
+      if (bodyLen) await sink.write(body);
+
+      // Central Directory Header
+      const cdExtraDataLen = (needZip64Sizes ? 16 : 0) + (needZip64Off ? 8 : 0);
+      const cdExtraLen = cdExtraDataLen ? (4 + cdExtraDataLen) : 0;
+      const cdRec = new Uint8Array(46 + name.length + cdExtraLen);
+      put32(cdRec, 0, 0x02014b50);
+      put16(cdRec, 4, entryZip64 ? 45 : 20);
+      put16(cdRec, 6, entryZip64 ? 45 : 20);
+      put16(cdRec, 8, 0x0800);
+      put16(cdRec, 10, method);
+      put16(cdRec, 12, dt.time);
+      put16(cdRec, 14, dt.date);
+      put32(cdRec, 16, crc);
+      put32(cdRec, 20, needZip64Sizes ? 0xFFFFFFFF : bodyLen);
+      put32(cdRec, 24, needZip64Sizes ? 0xFFFFFFFF : rawLen);
+      put16(cdRec, 28, name.length);
+      put16(cdRec, 30, cdExtraLen);
+      put16(cdRec, 32, 0);
+      put16(cdRec, 34, 0);
+      put16(cdRec, 36, 0);
+      put32(cdRec, 38, 0x81A40000);
+      put32(cdRec, 42, needZip64Off ? 0xFFFFFFFF : offset);
+      cdRec.set(name, 46);
+      if (cdExtraLen) {
+        let ex = 46 + name.length;
+        put16(cdRec, ex, 0x0001);
+        put16(cdRec, ex + 2, cdExtraDataLen);
+        ex += 4;
+        if (needZip64Sizes) {
+          put64(cdRec, ex, rawLen);
+          put64(cdRec, ex + 8, bodyLen);
+          ex += 16;
+        }
+        if (needZip64Off) put64(cdRec, ex, offset);
+      }
+
+      await appendCd(cdRec);
+      cdSize += cdRec.length;
+      offset += head.length + bodyLen;
+      count++;
+      if (onProgress && (count % 25 === 0 || count === totalCount)) {
+        onProgress(totalCount ? count / totalCount : 0, count, offset);
+      }
+      await maybeYield();
+    });
+
+    await flushSlab();
+    const cdOffset = offset;
+    if (cdSink) {
+      await sink.copyFromSink(cdSink);
+    } else {
+      for (const s of cdSlabs) await sink.write(s);
+    }
+
+    const needZip64Eocd = count >= 0xFFFF || cdSize >= 0xFFFFFFFF || cdOffset >= 0xFFFFFFFF;
+    if (needZip64Eocd) {
+      const zip64EocdOff = cdOffset + cdSize;
+      const z64 = new Uint8Array(56);
+      put32(z64, 0, 0x06064b50);
+      put64(z64, 4, 44);
+      put16(z64, 12, 45);
+      put16(z64, 14, 45);
+      put32(z64, 16, 0);
+      put32(z64, 20, 0);
+      put64(z64, 24, count);
+      put64(z64, 32, count);
+      put64(z64, 40, cdSize);
+      put64(z64, 48, cdOffset);
+      await sink.write(z64);
+
+      const loc = new Uint8Array(20);
+      put32(loc, 0, 0x07064b50);
+      put32(loc, 4, 0);
+      put64(loc, 8, zip64EocdOff);
+      put32(loc, 16, 1);
+      await sink.write(loc);
+    }
+
+    const eocd = new Uint8Array(22);
+    put32(eocd, 0, 0x06054b50);
+    put16(eocd, 4, 0);
+    put16(eocd, 6, 0);
+    put16(eocd, 8, count >= 0xFFFF ? 0xFFFF : count);
+    put16(eocd, 10, count >= 0xFFFF ? 0xFFFF : count);
+    put32(eocd, 12, cdSize >= 0xFFFFFFFF ? 0xFFFFFFFF : cdSize);
+    put32(eocd, 16, cdOffset >= 0xFFFFFFFF ? 0xFFFFFFFF : cdOffset);
+    put16(eocd, 20, 0);
+    await sink.write(eocd);
+
+    if (onProgress) onProgress(1, count, cdOffset + cdSize + eocd.length);
+  }
+
+  /* ============================================================
+     STREAMING TAR (POSIX ustar, GNU long-name extension)
+     ============================================================ */
+  function tarHeader(name, size, mtime, type) {
+    const b = new Uint8Array(512);
+    const put = (str, off, len) => { const s = utf8(str); b.set(s.subarray(0, len), off); };
+    const oct = (n, w) => Math.max(0, Math.floor(n)).toString(8).padStart(w, '0').slice(-w);
+    put(name, 0, 100);
+    put('0000644', 100, 8);
+    put('0001750', 108, 8);
+    put('0001750', 116, 8);
+    if (size > 0o77777777777) {
+      b[124] = 0x80;
+      let v = BigInt(size);
+      for (let i = 135; i >= 125; i--) { b[i] = Number(v & 255n); v >>= 8n; }
+    } else {
+      put(oct(size, 11), 124, 12);
+    }
+    put(oct(mtime, 11), 136, 12);
+    b.fill(32, 148, 156);
+    b[156] = (type || '0').charCodeAt(0);
+    put('ustar\u000000', 257, 8);
+    put('root', 265, 32);
+    put('root', 297, 32);
+    put('0000000', 329, 8);
+    put('0000000', 337, 8);
+    let sum = 0;
+    for (let i = 0; i < 512; i++) sum += b[i];
+    b.set(utf8(oct(sum, 6) + '\u0000 '), 148);
+    return b;
+  }
+  function tarPad(len) { const r = len % 512; return r ? new Uint8Array(512 - r) : null; }
+
+  async function streamTar(totalCount, iterateEntries, sink, onProgress, isCancelled) {
+    let count = 0, written = 0;
+    await iterateEntries(async (e) => {
+      if (isCancelled && isCancelled()) throw new Error('Cancelled');
+      const raw = e.data || await e.readData();
+      const nameBytes = utf8(e.path);
+      const mtime = Math.floor(((e.date ? e.date.getTime() : e.dateMs) || Date.now()) / 1000);
+      let storedName = e.path;
+      if (nameBytes.length > 100) {
+        const longName = new Uint8Array(nameBytes.length + 1);
+        longName.set(nameBytes, 0);
+        const lh = tarHeader('././@LongLink', longName.length, mtime, 'L');
+        await sink.write(lh);
+        await sink.write(longName);
+        const lp = tarPad(longName.length);
+        if (lp) await sink.write(lp);
+        written += 512 + longName.length + (lp ? lp.length : 0);
+        storedName = e.path.slice(-99);
+      }
+      const h = tarHeader(storedName, raw.length, mtime, '0');
+      await sink.write(h);
+      if (raw.length) await sink.write(raw);
+      const p = tarPad(raw.length);
+      if (p) await sink.write(p);
+      written += 512 + raw.length + (p ? p.length : 0);
+      count++;
+      if (onProgress && (count % 30 === 0 || count === totalCount)) {
+        onProgress(totalCount ? count / totalCount : 0, count, written);
+      }
+      await maybeYield();
+    });
+    await sink.write(new Uint8Array(1024));
+    if (onProgress) onProgress(1, count, written + 1024);
+  }
+
+  /* ============================================================
+     STREAMING 7Z (Copy codec, 64-bit sizes, O(N) fast header builder)
+     ============================================================ */
+  function szNum(out, value) {
+    let v = typeof value === 'bigint' ? value : BigInt(Math.round(value));
+    const Z = 0n, ONE = 1n;
+    if (v < Z) v = Z;
+    let i = 0;
+    for (; i < 8; i++) {
+      if ((v >> BigInt(8 * i)) < (ONE << BigInt(7 - i))) break;
+    }
+    let first = 0, mask = 0x80;
+    for (let k = 0; k < i; k++) { first |= mask; mask >>= 1; }
+    if (i >= 8) { first = 0xFF; }
+    else {
+      const high = v >> BigInt(8 * i);
+      first |= Number(high & BigInt(mask - 1));
+    }
+    out.push(first);
+    let rest = i >= 8 ? v : (v & ((ONE << BigInt(8 * i)) - 1n));
+    for (let k = 0; k < i; k++) { out.push(Number(rest & 255n)); rest >>= 8n; }
+  }
+  function szBitSet(flags) {
+    const out = new Uint8Array(Math.ceil(flags.length / 8));
+    flags.forEach((f, i) => { if (f) out[i >> 3] |= (1 << (7 - (i & 7))); });
+    return out;
+  }
+  function filetimeBig(ms) {
+    return (BigInt(Math.round(ms || Date.now())) + 11644473600000n) * 10000n;
+  }
+
+  function build7zHeaderAndStart(metas) {
+    const withStream = metas.filter(e => e.size > 0);
+    const h = [];
+    h.push(0x01, 0x04); // kHeader, kMainStreamsInfo
+
+    // PackInfo
+    h.push(0x06);
+    szNum(h, 0);
+    szNum(h, withStream.length);
+    h.push(0x09);
+    let packedSize = 0n;
+    for (const e of withStream) { szNum(h, e.size); packedSize += BigInt(e.size); }
+    h.push(0x00);
+
+    // UnPackInfo
+    h.push(0x07, 0x0B);
+    szNum(h, withStream.length);
+    h.push(0x00);
+    for (let i = 0; i < withStream.length; i++) { szNum(h, 1); h.push(0x01, 0x00); }
+    h.push(0x0C);
+    for (const e of withStream) szNum(h, e.size);
+    h.push(0x0A, 0x01);
+    for (const e of withStream) { const c = e.crc >>> 0; h.push(c & 255, (c >>> 8) & 255, (c >>> 16) & 255, (c >>> 24) & 255); }
+    h.push(0x00, 0x08, 0x00, 0x00);
+
+    // FilesInfo
+    h.push(0x05);
+    szNum(h, metas.length);
+
+    // Names (O(N) buffer push, zero quadratic concat)
+    let totalNameLen = 0;
+    for (const e of metas) totalNameLen += (e.path.length * 2) + 2;
+    h.push(0x11);
+    szNum(h, totalNameLen + 1);
+    h.push(0x00);
+    const nameBuf = new Uint8Array(totalNameLen);
+    let np = 0;
+    for (const e of metas) {
+      for (let i = 0; i < e.path.length; i++) {
+        const c = e.path.charCodeAt(i);
+        nameBuf[np++] = c & 255; nameBuf[np++] = (c >>> 8) & 255;
+      }
+      nameBuf[np++] = 0; nameBuf[np++] = 0;
+    }
+
+    const tailArr = [];
+    const isEmpty = metas.map(e => !(e.size > 0));
+    if (isEmpty.some(Boolean)) {
+      const es = szBitSet(isEmpty);
+      tailArr.push(0x0E); szNum(tailArr, es.length);
+      for (const b of es) tailArr.push(b);
+      const ef = szBitSet(new Array(isEmpty.filter(Boolean).length).fill(true));
+      tailArr.push(0x0F); szNum(tailArr, ef.length);
+      for (const b of ef) tailArr.push(b);
+    }
+
+    tailArr.push(0x14);
+    const mt = [0x01, 0x00];
+    for (const e of metas) {
+      const t = le64big(filetimeBig(e.dateMs));
+      for (let i = 0; i < 8; i++) mt.push(t[i]);
+    }
+    szNum(tailArr, mt.length);
+    for (const b of mt) tailArr.push(b);
+    tailArr.push(0x00, 0x00);
+
+    const headPre = Uint8Array.from(h);
+    const headPost = Uint8Array.from(tailArr);
+    const header = new Uint8Array(headPre.length + nameBuf.length + headPost.length);
+    header.set(headPre, 0);
+    header.set(nameBuf, headPre.length);
+    header.set(headPost, headPre.length + nameBuf.length);
+
+    const start = new Uint8Array(32);
+    start.set([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, 0x00, 0x04], 0);
+    const sigTail = new Uint8Array([].concat(le64big(packedSize), le64big(header.length), le32(crc32(header))));
+    start.set(sigTail, 12);
+    start.set(le32(crc32(sigTail)), 8);
+
+    return { start, header };
+  }
+
+  async function stream7z(totalCount, iterateEntries, sink, onProgress, isCancelled) {
+    const metas = [];
+    // If entries have sizes/CRCs already, collect compact metadata first (no file payloads kept!)
+    await iterateEntries(async (e) => {
+      if (isCancelled && isCancelled()) throw new Error('Cancelled');
+      let size = e.size, crc = e.crc;
+      if (size === undefined || crc === undefined) {
+        const raw = e.data || await e.readData();
+        size = raw.length;
+        crc = crc32(raw);
+      }
+      metas.push({ path: e.path, size, crc: crc >>> 0, dateMs: e.date ? e.date.getTime() : (e.dateMs || Date.now()) });
+    });
+    if (!metas.length) throw new Error('Nothing to write.');
+    const { start, header } = build7zHeaderAndStart(metas);
+    await sink.write(start);
+
+    let count = 0, written = 32;
+    await iterateEntries(async (e) => {
+      if (isCancelled && isCancelled()) throw new Error('Cancelled');
+      const sz = e.size !== undefined ? e.size : (e.data ? e.data.length : 0);
+      if (sz > 0 || e.size === undefined) {
+        const raw = e.data || await e.readData();
+        if (raw.length) { await sink.write(raw); written += raw.length; }
+      }
+      count++;
+      if (onProgress && (count % 25 === 0 || count === metas.length)) {
+        onProgress(metas.length ? count / metas.length : 0, count, written);
+      }
+      await maybeYield();
+    });
+    await sink.write(header);
+    if (onProgress) onProgress(1, count, written + header.length);
+  }
+
+  /* ============================================================
+     In-memory convenience build (kept for compatibility/tests)
+     ============================================================ */
+  async function build(format, entries, onProgress) {
+    const base = format.replace(/\.gz$/, '');
+    const gz = /\.gz$/.test(format);
+    const mem = createMemorySink();
+    const sink = gz ? createGzipSink(mem) : mem;
+    const iter = async (emit) => { for (const e of entries) await emit(e); };
+    if (base === 'zip') await streamZip(entries.length, iter, sink, onProgress);
+    else if (base === 'tar') await streamTar(entries.length, iter, sink, onProgress);
+    else if (base === '7z') await stream7z(entries.length, iter, sink, onProgress);
+    else throw new Error('Unknown format ' + format);
+    await sink.close();
+    return mem.result();
+  }
+
+  return {
+    crc32, bytesConcat, gzipBytes, deflateRaw, hasCS,
+    createGzipSink, createMemorySink,
+    streamZip, streamTar, stream7z, build,
+    async stream(format, totalCount, iterateEntries, targetSink, onProgress, isCancelled, cdSink) {
+      const base = format.replace(/\.gz$/, '');
+      const gz = /\.gz$/.test(format);
+      const sink = gz ? createGzipSink(targetSink) : targetSink;
+      try {
+        if (base === 'zip') await streamZip(totalCount, iterateEntries, sink, onProgress, isCancelled, gz ? null : cdSink);
+        else if (base === 'tar') await streamTar(totalCount, iterateEntries, sink, onProgress, isCancelled);
+        else if (base === '7z') await stream7z(totalCount, iterateEntries, sink, onProgress, isCancelled);
+        else throw new Error('Unknown format ' + format);
+        await sink.close();
+      } catch (e) {
+        if (sink.abort) await sink.abort(e);
+        throw e;
+      }
+    }
+  };
+})();
+/* ARCHIVE-END */
 </script>
 
 <script>
@@ -735,7 +1921,7 @@ function ready(n) {
   if (n === 2) return S.queries.length > 0;
   if (n === 5) return S.exts.size > 0 || S.custom.trim().length > 0;
   if (n === 6) return S.picked.size > 0;
-  if (n === 7) return S.files.length > 0;
+  if (n === 7) return S.stats.files > 0;
   return true;
 }
 
@@ -748,7 +1934,7 @@ function paintNav() {
   if (step >= 7) { next.classList.add('hide'); }
   else {
     next.classList.remove('hide');
-    next.textContent = step === 6 ? 'Start scraping →' : (step === 1 ? 'Next →' : 'Next →');
+    next.textContent = step === 6 ? 'Start scraping →' : 'Next →';
     next.disabled = !ready(step);
     if (!ready(step)) next.title = hintFor(step);
   }
@@ -764,7 +1950,7 @@ function hintFor(n) {
 function go(n, opts) {
   if (n < 1 || n > 8) return;
   if (!opts || !opts.force) {
-    if (n > step) {                       /* moving forward: every earlier step must be satisfied */
+    if (n > step) {
       for (let i = step; i < n; i++) {
         if (!ready(i)) { toast(hintFor(i), 'bad'); return; }
       }
@@ -773,10 +1959,15 @@ function go(n, opts) {
   step = n;
   $$('.stepbox').forEach(b => b.classList.toggle('hide', Number(b.dataset.step) !== n));
   paintRail(); paintNav();
+  saveSessionNow();
   window.scrollTo({ top: 0, behavior: 'auto' });
-  if (n === 1) renderOs(); if (n === 2) renderQueries();
-  if (n === 4) renderFormats('#fmtCards'); if (n === 5) { renderExts(); paintPresets(); }
-  if (n === 6) renderRepos(); if (n === 7) paintStats(); if (n === 8) paintDownload();
+  if (n === 1) renderOs();
+  if (n === 2) renderQueries();
+  if (n === 4) renderFormats('#fmtCards');
+  if (n === 5) { renderExts(); paintPresets(); }
+  if (n === 6) renderRepos();
+  if (n === 7) { paintStats(); paintScrapeControls(); updateDiskLine(); }
+  if (n === 8) paintDownload();
 }
 
 /* ---------------- step 1: device ---------------- */
@@ -837,14 +2028,17 @@ function renderFormats(sel) {
   paintFmtNote();
 }
 function paintFmtNote() {
-  const f = FORMATS.find(x => x.id === S.format);
+  const f = FORMATS.find(x => x.id === S.format) || FORMATS[0];
   const el = $('#fmtNote');
-  if (el) el.innerHTML = 'Packing <b>' + f.name + '</b>. Parts of <b>' + (Number(S.partMB) || 0) + ' MB</b>' +
-    ((Number(S.partMB) || 0) ? ' — when a part fills it downloads and the next starts' : ' (no splitting: one file)') +
-    ', up to <b>' + (Number(S.maxParts) || 1) + '</b> part' + (Number(S.maxParts) === 1 ? '' : 's') +
-    '. Scraping stops itself at <b>' + (Number(S.stopGB) || 0) + ' GB</b>' + ((Number(S.stopGB) || 0) ? '' : ' (never)') + '.';
+  const pmb = Number(S.partMB) || 0;
+  const mp = Number(S.maxParts) || 0;
+  const sgb = Number(S.stopGB) || 0;
+  if (el) el.innerHTML = 'Packing <b>' + f.name + '</b>. ' +
+    (pmb ? ('Parts of <b>' + pmb + ' MB</b>' + (S.autoPart ? ' (auto-downloading during scrape)' : ' (packed on Step 8)')) : '<b>Single giant archive</b> (0 = no splitting; ZIP64 handles &gt;4 GB)') +
+    ', ' + (mp ? ('max <b>' + mp + '</b> part' + (mp === 1 ? '' : 's')) : '<b>unlimited parts</b>') +
+    '. Scraping stops itself at <b>' + (sgb ? sgb + ' GB' : 'never (0)') + '</b>.';
   const d = $('#dlHelp');
-  if (d) d.innerHTML = '<b>' + f.name + '</b> in this run: ' + f.pros;
+  if (d) d.innerHTML = '<b>' + f.name + '</b> in this run: ' + f.pros + (typeof window.showSaveFilePicker === 'function' ? ' · Use <b>Stream directly to disk</b> for 4 GB+ archives with 0 MB RAM.' : '');
 }
 
 /* ---------------- step 5: filters ---------------- */
@@ -880,7 +2074,7 @@ function renderRepos() {
   } else {
     host.innerHTML = S.repos.map((r, i) =>
       '<label class="repo"><input type="checkbox" data-pick="' + i + '"' + (S.picked.has(r.full) ? ' checked' : '') + '>' +
-        '<span><span class="rn">' + esc(r.full) + '</span>' +
+        '<span><span class="rn">' + esc(r.full) + (S.completedRepos.has(r.full) ? ' <span style="color:var(--ok);font-size:11px">[done]</span>' : '') + '</span>' +
         '<span class="rm">★ ' + fmtNum(r.stars) + (r.lang ? ' · ' + esc(r.lang) : '') + (r.desc ? ' · ' + esc(r.desc.slice(0, 80)) : '') + '</span></span>' +
       '</label>').join('');
   }
@@ -898,334 +2092,119 @@ function paintStats() {
   const total = S.picked.size || 1;
   $('#bar').style.width = Math.min(100, (S.stats.repos / total) * 100) + '%';
 }
-function logLine(msg, kind) {
+
+function paintScrapeControls() {
+  const hasProgress = S.stats.files > 0 || S.completedRepos.size > 0;
+  const remaining = S.repos.filter(r => S.picked.has(r.full) && !S.completedRepos.has(r.full)).length;
+  const btnRun = $('#btnRun');
+  const btnPause = $('#btnPause');
+  const btnStop = $('#btnStop');
+  const btnGoDl = $('#btnGoDl');
+  const btnClearRun = $('#btnClearRun');
+
+  if (running) {
+    btnRun.classList.add('hide');
+    btnPause.classList.remove('hide');
+    btnStop.classList.remove('hide');
+    btnGoDl.classList.add('hide');
+    btnClearRun.classList.add('hide');
+  } else {
+    btnPause.classList.add('hide');
+    btnStop.classList.add('hide');
+    if (hasProgress && remaining > 0) {
+      btnRun.classList.remove('hide');
+      btnRun.textContent = 'Resume scraping (' + remaining + ' repos left)';
+    } else if (hasProgress && remaining === 0) {
+      btnRun.classList.add('hide');
+    } else {
+      btnRun.classList.remove('hide');
+      btnRun.textContent = 'Start scraping';
+    }
+    btnGoDl.classList.toggle('hide', S.unpackedFiles <= 0 && S.stats.files <= 0);
+    btnClearRun.classList.toggle('hide', !hasProgress);
+  }
+}
+
+async function updateDiskLine() {
+  const el = $('#diskLine');
+  if (!el) return;
+  const est = await DISK.estimate();
+  const modeLabel = DISK.mode === 'opfs' ? 'OPFS disk (0 MB RAM)' : (DISK.mode === 'idb' ? 'IndexedDB disk (0 MB RAM)' : 'In-memory fallback');
+  let txt = 'Storage: ' + modeLabel;
+  if (S.partsDownloaded > 0) txt += ' · ' + S.partsDownloaded + ' part' + (S.partsDownloaded === 1 ? '' : 's') + ' auto-downloaded';
+  if (est && est.quota) {
+    const free = Math.max(0, est.quota - est.usage);
+    txt += ' · Browser disk used: ' + fmtBytes(est.usage) + ' (' + fmtBytes(free) + ' free)';
+  }
+  el.textContent = txt;
+}
+
+function logLine(msg, kind, skipRecord) {
+  if (!skipRecord) {
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    S.logs.push({ t, msg, kind: kind || '' });
+    if (S.logs.length > 180) S.logs.splice(0, S.logs.length - 180);
+  }
   const box = $('#log'); if (!box) return;
   const d = document.createElement('div');
   d.className = 'l';
-  const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  d.innerHTML = '<span class="tm">' + t + '</span><span class="' + (kind || '') + '" style="flex:1;min-width:0">' + msg + '</span>';
+  const entry = S.logs[S.logs.length - 1];
+  const tm = (typeof skipRecord === 'object' && skipRecord.t) ? skipRecord.t : (entry ? entry.t : '');
+  d.innerHTML = '<span class="tm">' + tm + '</span><span class="' + (kind || '') + '" style="flex:1;min-width:0">' + msg + '</span>';
   box.appendChild(d);
   while (box.children.length > 400) box.removeChild(box.firstChild);
   box.scrollTop = box.scrollHeight;
 }
+function replayLogs() {
+  const box = $('#log'); if (!box) return;
+  box.innerHTML = '';
+  for (const l of S.logs) logLine(l.msg, l.kind, l);
+}
 
 /* ---------------- step 8: download ---------------- */
-function paintDownload() {
-  $('#dlFiles').textContent = fmtNum(S.files.length);
-  $('#dlSize').innerHTML = fmtBytes(S.stats.bytes).replace(/ ([A-Z]+)$/, '<small>$1</small>');
+let cachedPartsMeta = null;
+async function paintDownload() {
+  const meta = await DISK.getPartsMeta(S.partMB, false);
+  cachedPartsMeta = meta;
+  const mp = Number(S.maxParts) || 0;
+  const exportParts = mp > 0 ? meta.parts.slice(0, mp) : meta.parts;
+
+  $('#dlFiles').textContent = fmtNum(meta.totalFiles);
+  $('#dlSize').innerHTML = fmtBytes(meta.totalBytes).replace(/ ([A-Z]+)$/, '<small>$1</small>');
   $('#dlRepos').textContent = fmtNum(S.stats.repos);
-  $('#dlParts').textContent = String(partsNeeded());
+  $('#dlParts').textContent = String(exportParts.length || (meta.totalFiles ? 1 : 0));
   renderFormats('#fmtCards2');
-  $('#btnDownload').disabled = !S.files.length;
-  if (!S.files.length) $('#dlState').textContent = 'Nothing collected yet — run a scrape first.';
+
+  const warnBox = $('#dlPartWarn');
+  if (mp > 0 && meta.parts.length > mp) {
+    warnBox.classList.remove('hide');
+    warnBox.innerHTML = '<b>Max parts limit (' + mp + '):</b> Your ' + fmtBytes(meta.totalBytes) + ' needs <b>' + meta.parts.length +
+      ' parts</b> of ' + S.partMB + ' MB. Only the first ' + mp + ' parts will be exported unless you set Max parts to 0. ' +
+      '<button class="btn warn" id="btnUnlimitParts" type="button" style="padding:5px 10px;font-size:12px;margin-left:8px">Export all ' + meta.parts.length + ' parts</button>';
+    const uBtn = $('#btnUnlimitParts');
+    if (uBtn) uBtn.onclick = () => { S.maxParts = 0; $('#maxParts').value = 0; save(); paintDownload(); };
+  } else {
+    warnBox.classList.add('hide');
+  }
+
+  const hasFiles = meta.totalFiles > 0;
+  const hasFSA = typeof window.showSaveFilePicker === 'function' && typeof window.showDirectoryPicker === 'function';
+  $('#btnStreamDisk').classList.toggle('hide', !hasFSA);
+  $('#btnExportFolder').classList.toggle('hide', typeof window.showDirectoryPicker !== 'function');
+  $('#btnStreamDisk').disabled = !hasFiles || packing;
+  $('#btnDownload').disabled = !hasFiles || packing;
+  $('#btnExportFolder').disabled = !hasFiles || packing;
+
+  if (!hasFiles) {
+    if (S.partsDownloaded > 0) $('#dlState').textContent = 'All ' + S.partsDownloaded + ' part(s) were already auto-downloaded during scraping.';
+    else $('#dlState').textContent = 'Nothing collected yet — run a scrape first.';
+  } else if (!packing) {
+    $('#dlState').textContent = hasFSA && meta.totalBytes > 512 * 1024 * 1024
+      ? 'Recommended for ' + fmtBytes(meta.totalBytes) + ': click Stream directly to disk (0 MB RAM).'
+      : 'Ready to pack ' + fmtNum(meta.totalFiles) + ' files (' + fmtBytes(meta.totalBytes) + ').';
+  }
 }
-function partsNeeded() {
-  const cap = (Number(S.partMB) || 0) * 1024 * 1024;
-  if (!cap || !S.files.length) return 1;
-  let parts = 1, acc = 0;
-  S.files.forEach(f => {
-    if (acc + f.size > cap && acc > 0) { parts++; acc = 0; }
-    acc += f.size;
-  });
-  return Math.min(parts, Number(S.maxParts) || parts);
-}
 
-</script>
-
-<script>
-const ARCH = (() => {
-
-  const enc = new TextEncoder();
-  const archYield = () => new Promise(r => setTimeout(r, 0));
-
-  /* ---------------- byte helpers ---------------- */
-  function bytesConcat(parts) {
-    let total = 0;
-    for (const p of parts) total += p.length;
-    const out = new Uint8Array(total);
-    let o = 0;
-    for (const p of parts) { out.set(p, o); o += p.length; }
-    return out;
-  }
-  const utf8 = (s) => enc.encode(s);
-  function hex4(n) { return [n & 255, (n >>> 8) & 255, (n >>> 16) & 255, (n >>> 24) & 255]; }
-  function le16(n) { return [n & 255, (n >>> 8) & 255]; }
-  function le32(n) { return hex4(n >>> 0); }
-  function le64big(v) { // number -> 8 little-endian bytes (values < 2^53)
-    let n = BigInt(Math.round(v)), out = [];
-    for (let i = 0; i < 8; i++) { out.push(Number(n & 255n)); n >>= 8n; }
-    return out;
-  }
-
-  /* ---------------- CRC-32 (IEEE) ---------------- */
-  const CRC_TABLE = (() => {
-    const t = new Uint32Array(256);
-    for (let i = 0; i < 256; i++) {
-      let c = i;
-      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
-      t[i] = c >>> 0;
-    }
-    return t;
-  })();
-  function crc32(bytes, seed) {
-    let c = (seed === undefined ? 0 : seed) ^ 0xFFFFFFFF;
-    for (let i = 0; i < bytes.length; i++) c = CRC_TABLE[(c ^ bytes[i]) & 255] ^ (c >>> 8);
-    return (c ^ 0xFFFFFFFF) >>> 0;
-  }
-
-  /* ---------------- compression primitives ---------------- */
-  const hasCS = (fmt) => { try { new CompressionStream(fmt); return true; } catch (e) { return false; } };
-  async function compress(fmt, bytes) {
-    const stream = new Blob([bytes]).stream().pipeThrough(new CompressionStream(fmt));
-    return new Uint8Array(await new Response(stream).arrayBuffer());
-  }
-  async function deflateRaw(bytes) { return compress('deflate-raw', bytes); }
-  async function gzipBytes(bytes) { return compress('gzip', bytes); }
-
-  /* ============================================================
-     ZIP  (PKZIP 2.0, deflate or store, UTF-8 names, no zip64)
-     ============================================================ */
-  function dosDateTime(d) {
-    const yr = Math.max(1980, d.getFullYear());
-    return {
-      time: ((d.getHours() & 31) << 11) | ((d.getMinutes() & 63) << 5) | ((Math.floor(d.getSeconds() / 2)) & 31),
-      date: (((yr - 1980) & 127) << 9) | (((d.getMonth() + 1) & 15) << 5) | (d.getDate() & 31)
-    };
-  }
-
-  async function buildZip(entries, onProgress) {
-    const compressOK = hasCS('deflate-raw');
-    const locals = [], central = [];
-    let offset = 0, done = 0;
-    for (const e of entries) {
-      const name = utf8(e.path);
-      const raw = e.data;
-      const dt = dosDateTime(e.date || new Date());
-      let method = 0, body = raw;
-      if (compressOK && raw.length > 180) {
-        const def = await deflateRaw(raw);
-        if (def.length < raw.length) { method = 8; body = def; }
-      }
-      const crc = crc32(raw);
-      const head = new Uint8Array(
-        [].concat(
-          le32(0x04034b50), le16(20), le16(0x0800), le16(method), le16(dt.time), le16(dt.date),
-          le32(crc), le32(body.length), le32(raw.length), le16(name.length), le16(0),
-          Array.from(name)
-        )
-      );
-      locals.push(head, body);
-      central.push(new Uint8Array(
-        [].concat(
-          le32(0x02014b50), le16(20), le16(20), le16(0x0800), le16(method), le16(dt.time), le16(dt.date),
-          le32(crc), le32(body.length), le32(raw.length), le16(name.length), le16(0), le16(0),
-          le16(0), le16(0), le32(0x81A40000), le32(offset),
-          Array.from(name)
-        )
-      ));
-      offset += head.length + body.length;
-      if (onProgress && (++done % 40 === 0)) { onProgress(done / entries.length); await archYield(); }
-    }
-    const cd = bytesConcat(central);
-    const eocd = new Uint8Array([].concat(
-      le32(0x06054b50), le16(0), le16(0), le16(entries.length), le16(entries.length),
-      le32(cd.length), le32(offset), le16(0)
-    ));
-    if (offset > 0xFFFFFFFF) throw new Error('Archive exceeds 4 GB — plain .zip cannot hold that. Use Folder export instead.');
-    if (onProgress) onProgress(1);
-    return bytesConcat(locals.concat([cd, eocd]));
-  }
-
-  /* ============================================================
-     TAR  (POSIX ustar, GNU long-name extension)
-     ============================================================ */
-  function tarHeader(name, size, mtime, type) {
-    const b = new Uint8Array(512);
-    const put = (str, off, len) => { const s = utf8(str); b.set(s.subarray(0, len), off); };
-    const oct = (n, w) => Math.max(0, Math.floor(n)).toString(8).padStart(w, '0').slice(-w);
-    put(name, 0, 100);
-    put('0000644', 100, 8);
-    put('0001750', 108, 8);
-    put('0001750', 116, 8);
-    put(oct(size, 11), 124, 12);
-    put(oct(mtime, 11), 136, 12);
-    b.fill(32, 148, 156);                       // checksum placeholder (spaces)
-    b[156] = (type || '0').charCodeAt(0);
-    put('ustar\u000000', 257, 8);
-    put('root', 265, 32);
-    put('root', 297, 32);
-    put('0000000', 329, 8);
-    put('0000000', 337, 8);
-    let sum = 0;
-    for (let i = 0; i < 512; i++) sum += b[i];
-    b.set(utf8(oct(sum, 6) + '\u0000 '), 148);
-    return b;
-  }
-  function tarPad(len) { const r = len % 512; return r ? new Uint8Array(512 - r) : new Uint8Array(0); }
-
-  async function buildTar(entries, onProgress) {
-    const parts = [];
-    let done = 0;
-    for (const e of entries) {
-      const nameBytes = utf8(e.path);
-      const mtime = Math.floor(((e.date || new Date()).getTime()) / 1000);
-      let storedName = e.path;
-      if (nameBytes.length > 100) {              // GNU ././@LongLink extension
-        const longName = bytesConcat([nameBytes, new Uint8Array([0])]);
-        parts.push(tarHeader('././@LongLink', longName.length, mtime, 'L'), longName, tarPad(longName.length));
-        storedName = e.path.slice(-99);          // ignored by extractors once @LongLink is honoured
-      }
-      parts.push(tarHeader(storedName, e.data.length, mtime, '0'), e.data, tarPad(e.data.length));
-      if (onProgress && (++done % 60 === 0)) { onProgress(done / entries.length); await archYield(); }
-    }
-    parts.push(new Uint8Array(1024));            // end-of-archive
-    if (onProgress) onProgress(1);
-    return bytesConcat(parts);
-  }
-
-  /* ============================================================
-     7Z  (7z container, "Copy" codec — uncompressed, per-file folders)
-     ============================================================ */
-  function szNum(out, value) {          // 7-Zip variable length number
-    let v = typeof value === 'bigint' ? value : BigInt(Math.round(value));
-    const Z = 0n, ONE = 1n;
-    if (v < Z) v = Z;
-    let i = 0;
-    for (; i < 8; i++) {
-      if ((v >> BigInt(8 * i)) < (ONE << BigInt(7 - i))) break;
-    }
-    let first = 0, mask = 0x80;
-    for (let k = 0; k < i; k++) { first |= mask; mask >>= 1; }
-    if (i >= 8) { first = 0xFF; }
-    else {
-      const high = v >> BigInt(8 * i);
-      first |= Number(high & BigInt(mask - 1));
-    }
-    out.push(first);
-    let rest = i >= 8 ? v : (v & ((ONE << BigInt(8 * i)) - 1n));
-    for (let k = 0; k < i; k++) { out.push(Number(rest & 255n)); rest >>= 8n; }
-  }
-  function szUtf16LE(str) {              // code units, little endian
-    const out = [];
-    for (let i = 0; i < str.length; i++) {
-      const c = str.charCodeAt(i);
-      out.push(c & 255, (c >>> 8) & 255);
-    }
-    return out;
-  }
-  function szBitSet(flags) {             // bit vector, most-significant bit first
-    const out = new Uint8Array(Math.ceil(flags.length / 8));
-    flags.forEach((f, i) => { if (f) out[i >> 3] |= (1 << (7 - (i & 7))); });
-    return out;
-  }
-  function filetime(date) {              // 100 ns ticks since 1601-01-01
-    const ms = (date || new Date()).getTime();
-    return (ms + 11644473600000) * 10000;
-  }
-
-  function build7z(entries, onProgress) {
-    const files = entries.slice();
-    if (!files.length) throw new Error('Nothing to write.');
-    const withStream = files.filter(e => e.data && e.data.length > 0);
-    const h = [];
-
-    h.push(0x01);                                   // kHeader
-    h.push(0x04);                                   // kMainStreamsInfo
-
-    // ---- PackInfo
-    h.push(0x06);
-    szNum(h, 0);                                    // PackPos
-    szNum(h, withStream.length);                    // NumPackStreams
-    h.push(0x09);                                   // kSize
-    for (const e of withStream) szNum(h, e.data.length);
-    h.push(0x00);                                   // kEnd
-
-    // ---- UnPackInfo
-    h.push(0x07);
-    h.push(0x0B);                                   // kFolder
-    szNum(h, withStream.length);                    // NumFolders
-    h.push(0x00);                                   // External = false
-    for (let i = 0; i < withStream.length; i++) {
-      szNum(h, 1);                                  // NumCoders
-      h.push(0x01);                                 // flags: idSize=1, simple coder, no attrs
-      h.push(0x00);                                 // codec id 0x00 = Copy
-    }
-    h.push(0x0C);                                   // kCodersUnPackSize
-    for (const e of withStream) szNum(h, e.data.length);
-    h.push(0x0A);                                   // kCRC
-    h.push(0x01);                                   // AllAreDefined
-    for (const e of withStream) { const c = crc32(e.data); h.push(c & 255, (c >>> 8) & 255, (c >>> 16) & 255, (c >>> 24) & 255); }
-    h.push(0x00);                                   // kEnd
-    h.push(0x08); h.push(0x00);                     // kSubStreamsInfo (all defaults)
-    h.push(0x00);                                   // kEnd MainStreamsInfo
-
-    // ---- FilesInfo
-    h.push(0x05);
-    szNum(h, files.length);
-
-    // names
-    let nameBytes = [];
-    for (const e of files) { nameBytes = nameBytes.concat(szUtf16LE(e.path)); nameBytes.push(0, 0); }
-    h.push(0x11);                                   // kName
-    szNum(h, nameBytes.length + 1);                 // property size (includes External byte)
-    h.push(0x00);                                   // External = false
-    for (const b of nameBytes) h.push(b);
-
-    // empty streams (0-byte files) + which are files rather than directories
-    const isEmpty = files.map(e => !(e.data && e.data.length));
-    if (isEmpty.some(Boolean)) {
-      const es = szBitSet(isEmpty);
-      h.push(0x0E); szNum(h, es.length);
-      for (const b of es) h.push(b);
-      const ef = szBitSet(new Array(isEmpty.filter(Boolean).length).fill(true));
-      h.push(0x0F); szNum(h, ef.length);
-      for (const b of ef) h.push(b);
-    }
-    // modification times
-    h.push(0x14);                                   // kMTime
-    const mt = [];
-    mt.push(0x01);                                  // AllAreDefined
-    mt.push(0x00);                                  // External = false
-    for (const e of files) {
-      const t = le64big(filetime(e.date));
-      mt.push(t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7]);
-    }
-    szNum(h, mt.length);
-    for (const b of mt) h.push(b);
-
-    h.push(0x00);                                   // kEnd FilesInfo
-    h.push(0x00);                                   // kEnd Header
-
-    const header = Uint8Array.from(h);
-    const packed = bytesConcat(withStream.map(e => e.data));
-    if (onProgress) onProgress(0.5);
-
-    // signature header
-    const start = new Uint8Array(32);
-    start.set([0x37, 0x7A, 0xBC, 0xAF, 0x27, 0x1C, 0x00, 0x04], 0);
-    const tail = new Uint8Array([].concat(le64big(packed.length), le64big(header.length), le32(crc32(header))));
-    start.set(tail, 12);
-    const startCRC = crc32(tail);
-    start.set(le32(startCRC), 8);
-
-    if (onProgress) onProgress(1);
-    return bytesConcat([start, packed, header]);
-  }
-
-  /* ============================================================
-     facade
-     ============================================================ */
-  return {
-    crc32, bytesConcat, buildZip, buildTar, build7z, gzipBytes, deflateRaw, hasCS,
-    build(format, entries, onProgress) {
-      if (format === 'zip') return buildZip(entries, onProgress);
-      if (format === 'tar') return buildTar(entries, onProgress);
-      if (format === '7z') return build7z(entries, onProgress);
-      throw new Error('Unknown format ' + format);
-    }
-  };
-})();
-/* ARCHIVE-END */
 /* ============================================================
    GitHub API
    ============================================================ */
@@ -1289,6 +2268,7 @@ async function doSearch() {
     S.repos = Array.from(found.values()).slice(0, Number(S.maxRepos || 300));
     S.picked = new Set(S.repos.map(r => r.full));
     renderRepos();
+    saveSessionNow();
     $('#searchState').textContent = S.repos.length ? ('found ' + fmtNum(S.repos.length) + ' repos') : 'nothing found';
     if (S.repos.length) toast(fmtNum(S.repos.length) + ' repos found', 'ok');
   } finally {
@@ -1312,14 +2292,47 @@ function loadDemo() {
   S.repos = DEMO.map(d => ({ full: d.full, owner: d.full.split('/')[0], repo: d.full.split('/')[1], stars: d.stars, lang: d.lang, desc: d.desc, url: 'https://github.com/' + d.full }));
   S.picked = new Set(S.repos.map(r => r.full));
   renderRepos();
+  saveSessionNow();
   $('#searchState').textContent = 'demo repos loaded (no network used)';
   toast('3 demo repos ready', 'ok');
 }
 
 /* ============================================================
-   Scrape
+   Session Checkpointing
    ============================================================ */
-let stopFlag = false;
+let lastSaveAt = 0;
+function buildSessionSnapshot() {
+  return {
+    step,
+    scrapeStatus: S.scrapeStatus,
+    repos: S.repos,
+    picked: Array.from(S.picked),
+    completedRepos: Array.from(S.completedRepos),
+    inProgressRepo: S.inProgressRepo,
+    stats: Object.assign({}, S.stats),
+    unpackedFiles: S.unpackedFiles,
+    unpackedBytes: S.unpackedBytes,
+    partsDownloaded: S.partsDownloaded,
+    logs: S.logs.slice(-160),
+    updatedAt: Date.now()
+  };
+}
+function saveSessionNow(withBloom) {
+  if (!DISK.ready) return;
+  lastSaveAt = Date.now();
+  DISK.saveSession(buildSessionSnapshot(), !!withBloom);
+}
+function maybeSaveCheckpoint() {
+  if (Date.now() - lastSaveAt > 2500) saveSessionNow(true);
+}
+
+/* ============================================================
+   Scrape (Zero-RAM disk writes, continuous checkpoint, auto-part option)
+   ============================================================ */
+let stopMode = null; // null | 'pause' | 'stop'
+let running = false;
+let packing = false;
+let cancelPack = false;
 const EXT_SET = () => effectiveExts();
 const ASSET_RE = /<script[^>]+src\s*=|@import|<link[^>]+href\s*=|url\(\s*['"]?(?!data:)|<img[^>]+src\s*=/i;
 
@@ -1357,41 +2370,110 @@ async function fetchTree(full) {
 }
 async function fetchFile(full, path) {
   const url = RAW + '/' + full + '/HEAD/' + path.split('/').map(encodeURIComponent).join('/');
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return new Uint8Array(await res.arrayBuffer());
+  for (let a = 0; a < 2; a++) {
+    const res = await fetch(url);
+    if (res.ok) return new Uint8Array(await res.arrayBuffer());
+    if (res.status === 429 || res.status >= 500) { await sleep(800 * (a + 1)); continue; }
+    throw new Error('HTTP ' + res.status);
+  }
+  throw new Error('HTTP retry failed');
 }
 async function pool(items, limit, fn) {
   let i = 0;
   const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (i < items.length) { const idx = i++; await fn(items[idx], idx); }
+    while (i < items.length) {
+      if (stopMode) break;
+      const idx = i++;
+      await fn(items[idx], idx);
+    }
   });
   await Promise.all(workers);
 }
 
+window.addEventListener('beforeunload', (e) => {
+  if (running || packing) {
+    saveSessionNow(true);
+    DISK.flush();
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+async function flushAutoPartIfReady() {
+  const pmb = Number(S.partMB) || 0;
+  if (!S.autoPart || !pmb) return false;
+  const cap = pmb * 1024 * 1024;
+  if (S.unpackedBytes < cap) return false;
+  const mp = Number(S.maxParts) || 0;
+  if (mp > 0 && S.partsDownloaded >= mp) return false;
+
+  const meta = await DISK.getPartsMeta(S.partMB, false);
+  const readyPart = meta.parts.find(p => p.bytes >= cap) || meta.parts[0];
+  if (!readyPart) return false;
+
+  const partNum = S.partsDownloaded + 1;
+  logLine('⬇ Auto-packing part ' + partNum + ' (' + fmtNum(readyPart.count) + ' files · ' + fmtBytes(readyPart.bytes) + ')…', 'acc');
+  await packAndBrowserDownloadPart(readyPart, partNum, null);
+  await DISK.markPackedAndPrune(readyPart.startSeq, readyPart.endSeq);
+  S.partsDownloaded++;
+  S.unpackedFiles = Math.max(0, S.unpackedFiles - readyPart.count);
+  S.unpackedBytes = Math.max(0, S.unpackedBytes - readyPart.bytes);
+  saveSessionNow(true);
+  updateDiskLine();
+  if (mp > 0 && S.partsDownloaded >= mp) {
+    logLine('<b>Max parts reached (' + mp + ')</b> — stopping scrape', 'acc');
+    return true;
+  }
+  return false;
+}
+
 async function startScrape() {
-  const picked = S.repos.filter(r => S.picked.has(r.full));
-  if (!picked.length) { toast('Tick at least one repo', 'bad'); return; }
-  stopFlag = false;
-  S.files = []; S.stats = { files: 0, bytes: 0, repos: 0, skipped: 0 }; S.seen = new Set();
-  const demo = picked.every(p => p.full.startsWith('demo-org/'));
-  $('#log').innerHTML = '';
-  $('#btnRun').classList.add('hide'); $('#btnStop').classList.remove('hide');
-  $('#runState').textContent = demo ? 'demo run' : 'live run';
-  logLine('<b>Starting</b> — ' + picked.length + ' repos, ' + EXT_SET().size + ' file types' + (demo ? ' (demo, no network)' : ''), 'acc');
+  const allPicked = S.repos.filter(r => S.picked.has(r.full));
+  if (!allPicked.length) { toast('Tick at least one repo', 'bad'); return; }
+  const picked = allPicked.filter(r => !S.completedRepos.has(r.full));
+  if (!picked.length) {
+    toast('All selected repos are already scraped!', 'ok');
+    paintScrapeControls();
+    return;
+  }
+
+  stopMode = null;
+  const isResume = S.completedRepos.size > 0 || S.stats.files > 0;
+  const demo = allPicked.every(p => p.full.startsWith('demo-org/'));
+
+  S.scrapeStatus = 'running';
+  Wake.ensure();
+  $('#resumeBanner').classList.add('hide');
+  if (!isResume) $('#log').innerHTML = '';
+  paintScrapeControls();
+  $('#runState').textContent = demo ? 'demo run' : (isResume ? 'resuming…' : 'live run');
+  logLine('<b>' + (isResume ? 'Resuming' : 'Starting') + '</b> — ' + picked.length + ' repo' + (picked.length === 1 ? '' : 's') +
+    ' left · ' + EXT_SET().size + ' file types · ' + DISK.mode.toUpperCase() + (demo ? ' (demo, no network)' : ''), 'acc');
+
   const stopBytes = (Number(S.stopGB) || 0) * 1024 * 1024 * 1024;
   const maxKB = (Number(S.maxKB) || 0) * 1024, minKB = (Number(S.minKB) || 0) * 1024;
+  const inFlightHashes = new Set();
+  let autoLimitHit = false;
 
   for (const repo of picked) {
-    if (stopFlag) break;
-    if (stopBytes && S.stats.bytes >= stopBytes) { logLine('<b>Size limit reached</b> — ' + fmtBytes(stopBytes) + ' collected', 'acc'); break; }
+    if (stopMode || autoLimitHit) break;
+    if (stopBytes && S.stats.bytes >= stopBytes) {
+      logLine('<b>Size limit reached</b> — ' + fmtBytes(stopBytes) + ' collected', 'acc');
+      stopMode = 'stop';
+      break;
+    }
+
+    S.inProgressRepo = repo.full;
     $('#nowLine').textContent = repo.full + ' — reading tree';
+    saveSessionNow(false);
+
     try {
       const blobs = demo
         ? Object.entries(DEMO.find(d => d.full === repo.full).files).map(([p, size]) => ({ path: p, size }))
         : await fetchTree(repo.full);
 
-      const wanted = blobs.filter(b => {
+      const alreadyPaths = isResume ? await DISK.getRepoPaths(repo.full) : null;
+      const wantedAll = blobs.filter(b => {
         const ext = extOf(b.path);
         if (!EXT_SET().has(ext)) return false;
         if (dirSkipped(b.path)) return false;
@@ -1401,108 +2483,351 @@ async function startScrape() {
         return true;
       }).slice(0, Number(S.maxFilesRepo) || 400);
 
+      const wanted = alreadyPaths && alreadyPaths.size
+        ? wantedAll.filter(b => !alreadyPaths.has(b.path))
+        : wantedAll;
+
       let got = 0;
       await pool(wanted, demo ? 2 : 6, async (b) => {
-        if (stopFlag) return;
+        if (stopMode) return;
         try {
-          const bytes = demo ? demoBytes(b.path, b.size) : await fetchFile(repo.full, b.path);
+          let bytes = demo ? demoBytes(b.path, b.size) : await fetchFile(repo.full, b.path);
           if (!bytes.length) { S.stats.skipped++; return; }
           if (S.skipBlank && isBlank(bytes)) { S.stats.skipped++; return; }
           if (!S.allowExt && needsAssets(bytes)) { S.stats.skipped++; return; }
           const h = await hashBytes(bytes);
-          if (!S.dup && S.seen.has(h)) { S.stats.skipped++; return; }
-          S.seen.add(h);
-          S.files.push({ repo: repo.full, path: b.path, size: bytes.length, bytes });
-          S.stats.files++; S.stats.bytes += bytes.length; got++;
-          $('#nowLine').textContent = repo.full + '/' + b.path + ' — ' + fmtBytes(bytes.length);
+          if (!S.dup) {
+            if (inFlightHashes.has(h) || await DISK.hasSeen(h)) { S.stats.skipped++; return; }
+            inFlightHashes.add(h);
+          }
+          const crc = ARCH.crc32(bytes);
+          const sz = bytes.length;
+          try {
+            await DISK.saveFile({
+              repo: repo.full, path: b.path, size: sz, crc, dateMs: Date.now(),
+              hash: S.dup ? null : h, bytes
+            });
+          } finally {
+            inFlightHashes.delete(h);
+            bytes = null; // drop reference immediately so GC keeps RAM flat
+          }
+          S.stats.files++; S.stats.bytes += sz;
+          S.unpackedFiles++; S.unpackedBytes += sz;
+          got++;
+          $('#nowLine').textContent = repo.full + '/' + b.path + ' — ' + fmtBytes(sz);
           paintStats();
-          if (stopBytes && S.stats.bytes >= stopBytes) stopFlag = true;
+          maybeSaveCheckpoint();
+          if (stopBytes && S.stats.bytes >= stopBytes) stopMode = 'stop';
         } catch (e) { S.stats.skipped++; }
       });
-      S.stats.repos++;
-      logLine('✓ <b>' + esc(repo.full) + '</b> — ' + got + ' file' + (got === 1 ? '' : 's'), 'ok');
-      paintStats();
-      if (demo) await sleep(320);
+
+      if (!stopMode) {
+        S.completedRepos.add(repo.full);
+        S.inProgressRepo = null;
+        S.stats.repos = S.completedRepos.size;
+        await DISK.flush();
+        saveSessionNow(true);
+        logLine('✓ <b>' + esc(repo.full) + '</b> — ' + got + ' new file' + (got === 1 ? '' : 's') +
+          (alreadyPaths && alreadyPaths.size ? ' (' + alreadyPaths.size + ' restored)' : ''), 'ok');
+        paintStats();
+        updateDiskLine();
+        autoLimitHit = await flushAutoPartIfReady();
+        if (demo) await sleep(260);
+      } else {
+        await DISK.flush();
+        saveSessionNow(true);
+      }
     } catch (e) {
       logLine('✗ ' + esc(repo.full) + ' — ' + esc(e.message), 'er');
+      saveSessionNow(true);
     }
   }
-  $('#btnRun').classList.remove('hide'); $('#btnStop').classList.add('hide');
-  const why = stopFlag ? 'stopped' : (stopBytes && S.stats.bytes >= stopBytes ? 'size limit' : 'finished');
+
+  await DISK.flush();
+  S.scrapeStatus = stopMode === 'pause' ? 'paused' : (stopMode === 'stop' ? 'stopped' : 'done');
+  saveSessionNow(true);
+
+  const why = stopMode === 'pause' ? 'paused (progress saved)' :
+    (stopMode === 'stop' ? ((stopBytes && S.stats.bytes >= stopBytes) ? 'size limit' : 'stopped') : 'finished');
   $('#runState').textContent = why;
   $('#nowLine').textContent = why + ' — ' + fmtNum(S.stats.files) + ' files · ' + fmtBytes(S.stats.bytes);
   logLine('<b>Done</b> · ' + why + ' · ' + fmtNum(S.stats.files) + ' files · ' + fmtBytes(S.stats.bytes), 'acc');
   paintStats();
+  updateDiskLine();
 }
 
 /* ============================================================
-   Packing and download
+   Streaming Packing & Zero-RAM Download / Direct-to-Disk
    ============================================================ */
 function baseFormat() { return S.format.replace(/\.gz$/, ''); }
-function wantsGzip() { return /\.gz$/.test(S.format); }
-function entriesFor(list) {
-  /* the encoders expect { path, data, date } — path is the full name inside the archive */
-  const date = new Date();
-  const seen = new Map();
-  return list.map((f) => {
-    let name = 'Repo - ' + f.repo + '/' + f.path;   /* repo folder keeps every file unique */
-    if (seen.has(name)) { const n = seen.get(name) + 1; seen.set(name, n); name = name.replace(/(\.[^./]+)?$/, '-' + n + '$1'); }
-    else seen.set(name, 1);
-    return { path: name, data: f.bytes, date };
-  });
-}
-function splitFiles() {
-  const cap = (Number(S.partMB) || 0) * 1024 * 1024;
-  const maxParts = Math.max(1, Number(S.maxParts) || 1);
-  if (!cap) return [S.files.slice()];
-  const parts = []; let cur = []; let acc = 0;
-  S.files.forEach(f => {
-    if (acc + f.size > cap && cur.length) { parts.push(cur); cur = []; acc = 0; }
-    cur.push(f); acc += f.size;
-  });
-  if (cur.length) parts.push(cur);
-  if (parts.length > maxParts) {
-    const kept = parts.slice(0, maxParts);
-    const rest = parts.slice(maxParts).reduce((a, b) => a.concat(b), []);
-    kept[kept.length - 1] = kept[kept.length - 1].concat(rest);
-    return kept;
-  }
-  return parts;
-}
 function stamp() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
   return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + p(d.getMinutes()) + p(d.getSeconds());
 }
-function saveBlob(bytes, filename) {
-  const blob = new Blob([bytes], { type: 'application/octet-stream' });
-  const url = URL.createObjectURL(blob);
+function partFileName(runStamp, i, total, ext) {
+  return 'reposcrape-' + runStamp + (total > 1 ? '-part' + i + 'of' + total : '') + '.' + ext;
+}
+function triggerBrowserFileDownload(blobOrFile, filename) {
+  const url = URL.createObjectURL(blobOrFile);
   const a = document.createElement('a');
   a.href = url; a.download = filename; document.body.appendChild(a); a.click();
-  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 4000);
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 60000);
 }
-async function doDownload() {
-  if (!S.files.length) { toast('Nothing to download yet', 'bad'); return; }
-  const btn = $('#btnDownload'); btn.disabled = true;
-  const parts = splitFiles();
+
+function makePartIterator(partMeta) {
+  return async (emit) => {
+    const seenNames = new Map();
+    await DISK.forEachInRange(partMeta.startSeq, partMeta.endSeq, true, async (meta) => {
+      let name = 'Repo - ' + meta.repo + '/' + meta.path;
+      if (seenNames.has(name)) {
+        const n = seenNames.get(name) + 1;
+        seenNames.set(name, n);
+        name = name.replace(/(\.[^./]+)?$/, '-' + n + '$1');
+      } else {
+        seenNames.set(name, 1);
+      }
+      await emit({
+        path: name,
+        size: meta.size,
+        crc: meta.crc,
+        dateMs: meta.dateMs,
+        readData: () => DISK.readFileBytes(meta)
+      });
+    });
+  };
+}
+
+async function packPartToSink(partMeta, sink, onProgress) {
+  let cdSink = null;
+  if (baseFormat() === 'zip' && !/\.gz$/.test(S.format) && DISK.mode === 'opfs' && partMeta.count > 2000) {
+    cdSink = await DISK.createOpfsDlSink('cd_tmp.bin').catch(() => null);
+  }
+  try {
+    await ARCH.stream(
+      S.format,
+      partMeta.count,
+      makePartIterator(partMeta),
+      sink,
+      onProgress,
+      () => cancelPack,
+      cdSink
+    );
+  } finally {
+    if (cdSink) await cdSink.abort();
+  }
+}
+
+async function packAndBrowserDownloadPart(partMeta, partNum, totalParts) {
   const ext = S.format;
+  const name = partFileName(stamp(), partNum, totalParts || partNum, ext);
+  const dlSink = await DISK.createOpfsDlSink(name);
+  const t0 = performance.now();
+
+  const onProg = (pct, count, written) => {
+    const p = Math.round((pct || 0) * 100);
+    const bar = $('#dlBar'), now = $('#dlNow');
+    if (bar) bar.style.width = p + '%';
+    if (now) {
+      const sec = Math.max(0.1, (performance.now() - t0) / 1000);
+      now.textContent = 'part ' + partNum + (totalParts ? '/' + totalParts : '') + ' · ' + fmtNum(count) + '/' + fmtNum(partMeta.count) +
+        ' files · ' + p + '% · ' + fmtBytes(written / sec) + '/s';
+    }
+    $('#dlState').textContent = 'packing ' + name + ' · ' + p + '%';
+  };
+
+  if (dlSink) {
+    try {
+      await packPartToSink(partMeta, dlSink, onProg);
+      const file = await dlSink.finishToFile();
+      triggerBrowserFileDownload(file, name);
+      logLine('⬇ <b>' + esc(name) + '</b> — ' + fmtBytes(file.size) + ' (streamed via OPFS)', 'ok');
+      $('#dlState').textContent = 'saved ' + name + ' (' + fmtBytes(file.size) + ')';
+      setTimeout(() => dlSink.cleanup(), 180000);
+    } catch (e) {
+      await dlSink.abort();
+      throw e;
+    }
+  } else {
+    const memSink = ARCH.createMemorySink();
+    await packPartToSink(partMeta, memSink, onProg);
+    const blob = new Blob(memSink.chunks, { type: 'application/octet-stream' });
+    memSink.chunks.length = 0;
+    triggerBrowserFileDownload(blob, name);
+    logLine('⬇ <b>' + esc(name) + '</b> — ' + fmtBytes(blob.size), 'ok');
+    $('#dlState').textContent = 'saved ' + name + ' (' + fmtBytes(blob.size) + ')';
+  }
+}
+
+async function doStreamToDisk() {
+  if (packing) return;
+  const meta = cachedPartsMeta || await DISK.getPartsMeta(S.partMB, false);
+  const mp = Number(S.maxParts) || 0;
+  const parts = mp > 0 ? meta.parts.slice(0, mp) : meta.parts;
+  if (!parts.length) { toast('Nothing to download yet', 'bad'); return; }
+
+  const ext = S.format;
+  const runStamp = stamp();
+
+  // MUST call showSaveFilePicker / showDirectoryPicker as VERY FIRST await in click handler!
+  let singleHandle = null, dirHandle = null;
+  try {
+    if (parts.length === 1) {
+      singleHandle = await window.showSaveFilePicker({ suggestedName: partFileName(runStamp, 1, 1, ext) });
+    } else {
+      dirHandle = await window.showDirectoryPicker({ mode: 'readwrite' });
+    }
+  } catch (e) {
+    if (e && e.name === 'AbortError') { toast('Save cancelled'); return; }
+    toast('Disk picker failed: ' + e.message, 'bad');
+    return;
+  }
+
+  packing = true; cancelPack = false;
+  $('#dlProgBox').classList.remove('hide');
+  $('#btnCancelPack').classList.remove('hide');
+  paintDownload();
+
   try {
     for (let i = 0; i < parts.length; i++) {
-      $('#dlState').textContent = 'packing part ' + (i + 1) + ' of ' + parts.length + '…';
-      let bytes = await ARCH.build(baseFormat(), entriesFor(parts[i], 0, 0), (pct) => {
-        $('#dlState').textContent = 'packing part ' + (i + 1) + '/' + parts.length + ' · ' + Math.round(pct) + '%';
-      });
-      if (wantsGzip()) { $('#dlState').textContent = 'gzipping part ' + (i + 1) + '…'; bytes = await ARCH.gzipBytes(bytes); }
-      const name = 'reposcrape-' + stamp() + (parts.length > 1 ? '-part' + (i + 1) + 'of' + parts.length : '') + '.' + ext;
-      saveBlob(bytes, name);
-      logLine('⬇ <b>' + esc(name) + '</b> — ' + fmtBytes(bytes.length), 'ok');
-      $('#dlState').textContent = 'saved ' + name + ' (' + fmtBytes(bytes.length) + ')';
-      await sleep(600);
+      if (cancelPack) throw new Error('Cancelled');
+      const partMeta = parts[i];
+      const name = partFileName(runStamp, i + 1, parts.length, ext);
+      const fh = singleHandle || await dirHandle.getFileHandle(name, { create: true });
+      const writable = await fh.createWritable();
+      const t0 = performance.now();
+      let writtenTotal = 0;
+      const sink = {
+        async write(chunk) {
+          if (chunk && chunk.length) { await writable.write(chunk); writtenTotal += chunk.length; }
+        },
+        async copyFromSink(cdSink) {
+          // Only used for OPFS staging; in FSA mode we stream CD directly
+        },
+        async close() { await writable.close(); },
+        async abort() { try { await writable.abort(); } catch (e) {} }
+      };
+
+      await ARCH.stream(
+        S.format,
+        partMeta.count,
+        makePartIterator(partMeta),
+        sink,
+        (pct, count, bytesDone) => {
+          const p = Math.round((pct || 0) * 100);
+          $('#dlBar').style.width = p + '%';
+          const sec = Math.max(0.1, (performance.now() - t0) / 1000);
+          $('#dlNow').textContent = 'streaming part ' + (i + 1) + '/' + parts.length + ' · ' +
+            fmtNum(count) + '/' + fmtNum(partMeta.count) + ' files · ' + p + '% · ' + fmtBytes(bytesDone / sec) + '/s';
+          $('#dlState').textContent = 'writing ' + name + ' directly to disk · ' + p + '%';
+        },
+        () => cancelPack,
+        null
+      );
+      logLine('⬇ <b>' + esc(name) + '</b> — ' + fmtBytes(writtenTotal) + ' (streamed directly to disk)', 'ok');
+      $('#dlState').textContent = 'saved ' + name + ' (' + fmtBytes(writtenTotal) + ')';
+    }
+    toast('Saved ' + parts.length + ' archive' + (parts.length === 1 ? '' : 's') + ' directly to disk', 'ok');
+  } catch (e) {
+    $('#dlState').textContent = e.message === 'Cancelled' ? 'Cancelled' : ('Failed: ' + e.message);
+    toast(e.message === 'Cancelled' ? 'Cancelled' : ('Packing failed: ' + e.message), 'bad');
+  } finally {
+    packing = false; cancelPack = false;
+    $('#btnCancelPack').classList.add('hide');
+    paintDownload();
+  }
+}
+
+async function doDownload() {
+  if (packing) return;
+  const meta = cachedPartsMeta || await DISK.getPartsMeta(S.partMB, false);
+  const mp = Number(S.maxParts) || 0;
+  const parts = mp > 0 ? meta.parts.slice(0, mp) : meta.parts;
+  if (!parts.length) { toast('Nothing to download yet', 'bad'); return; }
+
+  packing = true; cancelPack = false;
+  $('#dlProgBox').classList.remove('hide');
+  $('#btnCancelPack').classList.remove('hide');
+  paintDownload();
+
+  try {
+    for (let i = 0; i < parts.length; i++) {
+      if (cancelPack) throw new Error('Cancelled');
+      await packAndBrowserDownloadPart(parts[i], i + 1, parts.length);
+      await sleep(350);
     }
     toast('Downloaded ' + parts.length + ' archive' + (parts.length === 1 ? '' : 's'), 'ok');
   } catch (e) {
-    $('#dlState').textContent = 'packing failed: ' + e.message;
-    toast('Packing failed: ' + e.message, 'bad');
-  } finally { btn.disabled = false; }
+    $('#dlState').textContent = e.message === 'Cancelled' ? 'Cancelled' : ('Packing failed: ' + e.message);
+    toast(e.message === 'Cancelled' ? 'Cancelled' : ('Packing failed: ' + e.message), 'bad');
+  } finally {
+    packing = false; cancelPack = false;
+    $('#btnCancelPack').classList.add('hide');
+    paintDownload();
+  }
+}
+
+async function doExportFolder() {
+  if (packing) return;
+  const meta = cachedPartsMeta || await DISK.getPartsMeta(0, false);
+  if (!meta.totalFiles) { toast('Nothing to export yet', 'bad'); return; }
+
+  let rootDir;
+  try {
+    rootDir = await window.showDirectoryPicker({ mode: 'readwrite' });
+  } catch (e) {
+    if (e && e.name === 'AbortError') { toast('Export cancelled'); return; }
+    toast('Folder picker failed: ' + e.message, 'bad');
+    return;
+  }
+
+  packing = true; cancelPack = false;
+  $('#dlProgBox').classList.remove('hide');
+  $('#btnCancelPack').classList.remove('hide');
+  paintDownload();
+
+  const dirCache = new Map();
+  async function ensureSubdir(segments) {
+    let cur = rootDir, key = '';
+    for (const seg of segments) {
+      key += '/' + seg;
+      if (dirCache.has(key)) { cur = dirCache.get(key); continue; }
+      cur = await cur.getDirectoryHandle(seg, { create: true });
+      dirCache.set(key, cur);
+    }
+    return cur;
+  }
+
+  let count = 0;
+  try {
+    const startSeq = meta.parts[0].startSeq, endSeq = meta.parts[meta.parts.length - 1].endSeq;
+    await DISK.forEachInRange(startSeq, endSeq, true, async (f) => {
+      if (cancelPack) throw new Error('Cancelled');
+      const parts = ('Repo - ' + f.repo + '/' + f.path).split('/').filter(Boolean);
+      const fileName = parts.pop();
+      const folder = await ensureSubdir(parts);
+      const fh = await folder.getFileHandle(fileName, { create: true });
+      const w = await fh.createWritable();
+      const raw = await DISK.readFileBytes(f);
+      if (raw.length) await w.write(raw);
+      await w.close();
+      count++;
+      if (count % 10 === 0 || count === meta.totalFiles) {
+        const p = Math.round((count / meta.totalFiles) * 100);
+        $('#dlBar').style.width = p + '%';
+        $('#dlNow').textContent = 'exporting ' + fmtNum(count) + '/' + fmtNum(meta.totalFiles) + ' files · ' + p + '%';
+        $('#dlState').textContent = 'writing files to folder · ' + p + '%';
+      }
+    });
+    toast('Exported ' + fmtNum(count) + ' files to folder', 'ok');
+    $('#dlState').textContent = 'exported ' + fmtNum(count) + ' files to folder';
+  } catch (e) {
+    $('#dlState').textContent = e.message === 'Cancelled' ? 'Cancelled' : ('Export failed: ' + e.message);
+    toast(e.message === 'Cancelled' ? 'Cancelled' : ('Export failed: ' + e.message), 'bad');
+  } finally {
+    packing = false; cancelPack = false;
+    $('#btnCancelPack').classList.add('hide');
+    paintDownload();
+  }
 }
 
 /* ============================================================
@@ -1538,14 +2863,34 @@ function paintAll() {
   $('#excludeDirs').value = S.excludeDirs; $('#extCustom').value = S.custom || '';
   $('#forksChip').setAttribute('aria-pressed', String(!!S.forks));
   $('#archChip').setAttribute('aria-pressed', String(!!S.archived));
+  $('#autoPartChip').setAttribute('aria-pressed', String(!!S.autoPart));
   $('#dupChip').setAttribute('aria-pressed', String(!!S.dup));
   $('#extChip').setAttribute('aria-pressed', String(!!S.allowExt));
   $('#blankChip').setAttribute('aria-pressed', String(!!S.skipBlank));
   $('#buildPill').textContent = BUILD;
 }
 
+async function clearSavedSession() {
+  if (running || packing) { toast('Stop the current operation first', 'bad'); return; }
+  await DISK.clearAll();
+  S.completedRepos.clear();
+  S.inProgressRepo = null;
+  S.stats = { files: 0, bytes: 0, repos: 0, skipped: 0 };
+  S.unpackedFiles = 0; S.unpackedBytes = 0; S.partsDownloaded = 0;
+  S.scrapeStatus = 'idle'; S.logs = [];
+  $('#log').innerHTML = '';
+  $('#nowLine').textContent = 'idle';
+  $('#runState').textContent = '';
+  $('#resumeBanner').classList.add('hide');
+  paintStats();
+  paintScrapeControls();
+  paintNav();
+  updateDiskLine();
+  if (step === 8) paintDownload();
+  toast('Cleared saved session and freed disk space', 'ok');
+}
+
 function wire() {
-  /* rail + nav */
   $('#rail').addEventListener('click', (e) => {
     const b = e.target.closest('[data-go]'); if (b) go(Number(b.dataset.go));
   });
@@ -1612,9 +2957,10 @@ function wire() {
       renderFormats('#fmtCards'); renderFormats('#fmtCards2'); paintDownload();
     });
   });
-  bindNum('#partMB', 'partMB', () => { paintFmtNote(); paintDownload(); });
-  bindNum('#maxParts', 'maxParts', () => { paintFmtNote(); paintDownload(); });
+  bindNum('#partMB', 'partMB', () => { paintFmtNote(); if (step === 8) paintDownload(); });
+  bindNum('#maxParts', 'maxParts', () => { paintFmtNote(); if (step === 8) paintDownload(); });
   bindNum('#stopGB', 'stopGB', paintFmtNote);
+  bindChip('#autoPartChip', 'autoPart', paintFmtNote);
 
   /* step 5 */
   bindNum('#minKB', 'minKB'); bindNum('#maxKB', 'maxKB'); bindNum('#maxFilesRepo', 'maxFilesRepo', paintFilterNote);
@@ -1642,45 +2988,87 @@ function wire() {
   /* step 6 */
   $('#btnSearch').addEventListener('click', doSearch);
   $('#btnDemoSearch').addEventListener('click', loadDemo);
-  $('#selAll').addEventListener('click', () => { S.picked = new Set(S.repos.map(r => r.full)); renderRepos(); });
-  $('#selNone').addEventListener('click', () => { S.picked = new Set(); renderRepos(); });
+  $('#selAll').addEventListener('click', () => { S.picked = new Set(S.repos.map(r => r.full)); renderRepos(); saveSessionNow(); });
+  $('#selNone').addEventListener('click', () => { S.picked = new Set(); renderRepos(); saveSessionNow(); });
   $('#repoList').addEventListener('change', (e) => {
     const c = e.target.closest('[data-pick]'); if (!c) return;
     const r = S.repos[Number(c.dataset.pick)];
     if (!r) return;
     if (c.checked) S.picked.add(r.full); else S.picked.delete(r.full);
     $('#repoCount').textContent = S.picked.size + ' of ' + S.repos.length + ' selected';
-    paintNav();
+    paintNav(); saveSessionNow();
   });
 
   /* step 7 */
   $('#btnRun').addEventListener('click', runScrapeFlow);
+  $('#btnPause').addEventListener('click', () => {
+    if (!stopMode) { stopMode = 'pause'; logLine('Pausing & saving checkpoint after active files…', 'acc'); $('#runState').textContent = 'pausing…'; }
+  });
   $('#btnStop').addEventListener('click', () => {
-    if (!stopFlag) { stopFlag = true; logLine('Stopping after the current files…', 'er'); $('#runState').textContent = 'stopping…'; }
+    if (!stopMode) { stopMode = 'stop'; logLine('Stopping after the current files…', 'er'); $('#runState').textContent = 'stopping…'; }
+  });
+  $('#btnGoDl').addEventListener('click', () => go(8, { force: true }));
+  $('#btnClearRun').addEventListener('click', () => {
+    if (confirm('Clear all ' + fmtNum(S.stats.files) + ' scraped files (' + fmtBytes(S.stats.bytes) + ') saved on disk and start fresh?')) clearSavedSession();
   });
 
   /* step 8 */
+  $('#btnStreamDisk').addEventListener('click', doStreamToDisk);
   $('#btnDownload').addEventListener('click', doDownload);
+  $('#btnExportFolder').addEventListener('click', doExportFolder);
+  $('#btnCancelPack').addEventListener('click', () => { cancelPack = true; $('#dlState').textContent = 'cancelling…'; });
 
   /* wake lock */
   $('#wakeBtn').addEventListener('click', () => Wake.toggle());
 }
 
-let running = false;
 async function runScrapeFlow() {
   if (running) return;
   running = true;
-  const wasStopped = await (async () => { await startScrape(); return stopFlag; })();
+  paintScrapeControls();
+  await startScrape();
   running = false;
-  if (wasStopped) {                       /* Stop & download, or a size limit */
+  paintScrapeControls();
+  paintNav();
+  if (stopMode === 'stop') {
     go(8, { force: true });
-    await sleep(350);
-    doDownload();
+    if (S.unpackedBytes > 0 && S.unpackedBytes <= 512 * 1024 * 1024) {
+      await sleep(300);
+      doDownload();
+    } else if (S.unpackedBytes > 512 * 1024 * 1024) {
+      toast('Stopped! Use Stream directly to disk for large archives.', 'ok');
+    }
   }
 }
 
+function showRestoredBanner(sess) {
+  const banner = $('#resumeBanner');
+  if (!banner) return;
+  const remaining = S.repos.filter(r => S.picked.has(r.full) && !S.completedRepos.has(r.full)).length;
+  banner.classList.remove('hide');
+  banner.innerHTML =
+    '<div><b>Saved progress restored from disk:</b> ' +
+      fmtNum(S.stats.files) + ' files (' + fmtBytes(S.stats.bytes) + ') · ' +
+      fmtNum(S.completedRepos.size) + '/' + fmtNum(S.picked.size) + ' repos done' +
+      (remaining > 0 ? ' · <b>' + remaining + ' repos remaining</b>' : '') +
+    '</div>' +
+    '<div class="row" style="gap:8px">' +
+      (remaining > 0 ? '<button class="btn primary" id="resResumeBtn" type="button" style="padding:7px 12px;font-size:13px">Resume scraping</button>' : '') +
+      (S.unpackedFiles > 0 ? '<button class="btn" id="resDlBtn" type="button" style="padding:7px 12px;font-size:13px">Download (' + fmtBytes(S.unpackedBytes) + ')</button>' : '') +
+      '<button class="btn ghost" id="resClearBtn" type="button" style="padding:7px 12px;font-size:13px">Clear saved</button>' +
+    '</div>';
+  const rBtn = $('#resResumeBtn');
+  if (rBtn) rBtn.onclick = () => { banner.classList.add('hide'); go(7, { force: true }); runScrapeFlow(); };
+  const dBtn = $('#resDlBtn');
+  if (dBtn) dBtn.onclick = () => { banner.classList.add('hide'); go(8, { force: true }); };
+  const cBtn = $('#resClearBtn');
+  if (cBtn) cBtn.onclick = () => {
+    if (confirm('Clear saved progress and delete ' + fmtNum(S.stats.files) + ' cached files from disk?')) clearSavedSession();
+  };
+}
+
 /* ---------------- boot ---------------- */
-(function boot() {
+(async function boot() {
   const err = (e) => {
     const box = $('#bootErr');
     if (box) { box.classList.remove('hide'); box.textContent = 'Startup error: ' + ((e && e.message) || e); }
@@ -1689,31 +3077,68 @@ async function runScrapeFlow() {
     load();
     paintAll();
     wire();
+
+    const mode = await DISK.init();
+    const storePill = $('#storePill'), storeTxt = $('#storeTxt');
+    if (mode === 'opfs') { storePill.className = 'pill on'; storeTxt.textContent = 'OPFS disk'; }
+    else if (mode === 'idb') { storePill.className = 'pill on'; storeTxt.textContent = 'IDB disk'; }
+    else { storePill.className = 'pill warn'; storeTxt.textContent = 'RAM fallback'; }
+
+    const sess = await DISK.loadSession();
+    const unpackedDisk = await DISK.getPartsMeta(0, false);
+    const allDisk = await DISK.getPartsMeta(0, true);
+    let startStep = 1;
+    if (sess || allDisk.totalFiles > 0) {
+      if (sess && Array.isArray(sess.repos)) S.repos = sess.repos;
+      if (sess && Array.isArray(sess.picked)) S.picked = new Set(sess.picked);
+      if (sess && Array.isArray(sess.completedRepos)) S.completedRepos = new Set(sess.completedRepos);
+      S.inProgressRepo = (sess && sess.inProgressRepo) || null;
+      if (sess && sess.stats) S.stats = Object.assign({ files: 0, bytes: 0, repos: 0, skipped: 0 }, sess.stats);
+      // Crash-safe reconciliation with actual files stored on disk
+      if (allDisk.totalFiles > S.stats.files) S.stats.files = allDisk.totalFiles;
+      if (allDisk.totalBytes > S.stats.bytes) S.stats.bytes = allDisk.totalBytes;
+      S.unpackedFiles = unpackedDisk.totalFiles;
+      S.unpackedBytes = unpackedDisk.totalBytes;
+      S.partsDownloaded = (sess && sess.partsDownloaded) || 0;
+      S.scrapeStatus = (sess && sess.scrapeStatus === 'running') ? 'paused' : ((sess && sess.scrapeStatus) || 'idle');
+      if (sess && Array.isArray(sess.logs)) { S.logs = sess.logs; replayLogs(); }
+      if (S.stats.files > 0 || S.completedRepos.size > 0 || S.repos.length > 0) {
+        if (sess && sess.step >= 6 && sess.step <= 8) startStep = sess.step;
+        else if (S.stats.files > 0) startStep = 7;
+        else if (S.repos.length > 0) startStep = 6;
+      }
+      if (S.stats.files > 0 || S.completedRepos.size > 0) {
+        if (sess && sess.scrapeStatus === 'running') logLine('<b>Tab restored</b> — recovered ' + fmtNum(S.stats.files) + ' files (' + fmtBytes(S.stats.bytes) + ') from disk.', 'acc');
+        $('#nowLine').textContent = S.scrapeStatus + ' — ' + fmtNum(S.stats.files) + ' files · ' + fmtBytes(S.stats.bytes);
+        $('#runState').textContent = S.scrapeStatus === 'paused' ? 'paused (restored)' : S.scrapeStatus;
+        showRestoredBanner(sess || {});
+      }
+    }
+
     paintRail(); paintNav();
     renderOs(); renderQueries(); renderFormats('#fmtCards');
 
-    const ticks = ['reading your browser', 'loading archive encoders', 'warming the engine', 'ready'];
+    const ticks = ['mounting disk storage', 'loading streaming encoders', 'restoring session', 'ready'];
     let i = 0;
     const tick = setInterval(() => {
       i++; const el = $('#spTick');
       if (el && i < ticks.length) el.textContent = ticks[i];
       if (i >= ticks.length) clearInterval(tick);
-    }, 380);
+    }, 180);
 
     setTimeout(() => {
       const sp = $('#splash');
-      if (sp) { sp.classList.add('gone'); setTimeout(() => sp.remove(), 600); }
+      if (sp) { sp.classList.add('gone'); setTimeout(() => sp.remove(), 500); }
       $('#app').classList.remove('hide');
       $('#nav').classList.remove('hide');
-      go(1, { force: true });
-    }, 1650);
+      go(startStep, { force: true });
+    }, 760);
   } catch (e) { err(e); }
   window.addEventListener('error', (e) => {
     const box = $('#bootErr');
     if (box && box.classList.contains('hide')) { box.classList.remove('hide'); box.textContent = 'Script error: ' + e.message; }
   });
 })();
-
 </script>
 <script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a5f8c6a0dace7689',t:'MTc5NTUyNzEwNg=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a5f8c6a0dace7689',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 </html>
