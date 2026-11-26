@@ -148,6 +148,14 @@ textarea{min-height:78px;resize:vertical}
 .opt .t{font-size:13.5px;font-weight:700;letter-spacing:-.01em}
 .opt .s{font-size:11.5px;color:var(--txt3);margin-top:3px;line-height:1.4}
 
+/* ---------------- archive file organizer ---------------- */
+.file-tree{max-height:430px;overflow:auto;border:1px solid var(--line);border-radius:12px;background:rgba(0,0,0,.13)}
+.file-row{display:grid;grid-template-columns:24px minmax(0,1fr);gap:9px;align-items:start;padding:9px 12px;border-bottom:1px solid var(--line);font-size:12px}
+.file-row:last-child{border-bottom:0}.file-row:hover{background:rgba(255,255,255,.035)}
+.file-row input{margin:3px 0 0;accent-color:var(--acc)}.file-path{display:block;overflow-wrap:anywhere;color:var(--txt2);font-family:var(--mono);font-size:11.5px}
+.file-meta{display:block;color:var(--txt3);font-size:11px;margin-top:2px}
+@media(max-width:600px){.file-row{padding:9px 8px}}
+
 /* ---------------- misc blocks ---------------- */
 .note{border-radius:var(--r2);padding:13px 15px;font-size:13px;line-height:1.55;border:1px solid var(--line2);
   background:rgba(255,255,255,.035);color:var(--txt2)}
@@ -473,6 +481,33 @@ textarea{min-height:78px;resize:vertical}
       <div class="stat"><div class="k">Repos</div><div class="v" id="dlRepos">0</div></div>
       <div class="stat"><div class="k">Parts</div><div class="v" id="dlParts">1</div></div>
     </div>
+    <div class="card" id="organizer" style="margin-top:18px;padding:16px">
+      <div class="row" style="justify-content:space-between;align-items:flex-start">
+        <div><h3 style="font-size:17px">Arrange your archive</h3>
+          <div class="hint" style="margin-top:4px">Review the collected file paths and move selected files into a folder before creating your ZIP or exporting the raw folder. Changes are saved in this browser. Parts already auto-downloaded during scraping cannot be reorganized.</div>
+        </div>
+        <span class="pill" id="organizerCount">0 files</span>
+      </div>
+      <div class="row" style="margin-top:14px">
+        <input id="fileSearch" type="search" placeholder="Filter paths or repositories…" aria-label="Filter archive files" style="flex:1;min-width:220px">
+        <button class="btn ghost" id="selectVisibleFiles" type="button">Select visible</button>
+        <button class="btn ghost" id="clearFileSelection" type="button">Clear selection</button>
+      </div>
+      <div class="row" style="margin-top:10px">
+        <label class="hint" for="targetFolder">Move selected files to folder</label>
+        <input id="targetFolder" type="text" placeholder="e.g. frontend/components (blank = archive root)" aria-label="Destination folder" style="flex:1;min-width:220px">
+        <button class="btn primary" id="moveSelectedFiles" type="button">Move selected</button>
+      </div>
+      <div class="hint" id="organizerSelection" style="margin-top:8px">Select files below to organize them.</div>
+      <div class="file-tree" id="fileTree" role="list" aria-label="Collected archive file structure" style="margin-top:10px"></div>
+      <div class="row" style="justify-content:space-between;margin-top:10px">
+        <div class="hint" id="filePageInfo"></div>
+        <div class="row" style="gap:6px">
+          <button class="btn ghost" id="filePrev" type="button" style="padding:7px 11px;font-size:12px">← Previous</button>
+          <button class="btn ghost" id="fileNext" type="button" style="padding:7px 11px;font-size:12px">Next →</button>
+        </div>
+      </div>
+    </div>
     <div class="sect" style="margin-top:20px">Archive format</div>
     <div class="fmt-cards" id="fmtCards2"></div>
     <div id="dlPartWarn" class="note warn hide" style="margin-top:14px"></div>
@@ -504,7 +539,7 @@ textarea{min-height:78px;resize:vertical}
 
 <script>
 'use strict';
-const BUILD = 'Release 2.0';
+const BUILD = 'Release 2.1';
 const $ = (s, r) => (r || document).querySelector(s);
 const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -1171,6 +1206,39 @@ self.onmessage = (ev) => {
         ramFiles.forEach(f => { if (f.repo === repoFull) set.add(f.path); });
       }
       return set;
+    },
+
+    async getArchiveFiles() {
+      const files = [];
+      if (db) {
+        await idbTx(['files'], 'readonly', (tx) => {
+          tx.objectStore('files').openCursor().onsuccess = (ev) => {
+            const c = ev.target.result;
+            if (c) { if (!c.value.packed) files.push(c.value); c.continue(); }
+          };
+        });
+      } else ramFiles.forEach(f => { if (!f.packed) files.push(f); });
+      return files;
+    },
+
+    async moveArchiveFiles(updates) {
+      if (db) {
+        await idbTx(['files'], 'readwrite', (tx) => {
+          const store = tx.objectStore('files');
+          updates.forEach(({ seq, archivePath }) => {
+            const req = store.get(seq);
+            req.onsuccess = () => {
+              if (req.result && !req.result.packed) {
+                req.result.archivePath = archivePath;
+                store.put(req.result);
+              }
+            };
+          });
+        });
+      } else {
+        const bySeq = new Map(ramFiles.map(f => [f.seq, f]));
+        updates.forEach(({ seq, archivePath }) => { const f = bySeq.get(seq); if (f && !f.packed) f.archivePath = archivePath; });
+      }
     },
 
     async getPartsMeta(partMB, includePacked) {
@@ -2163,7 +2231,77 @@ function replayLogs() {
 
 /* ---------------- step 8: download ---------------- */
 let cachedPartsMeta = null;
+let organizerFiles = [];
+let organizerPage = 0;
+const organizerPageSize = 200;
+const selectedFileSeqs = new Set();
+function archivePathFor(file) { return file.archivePath || ('Repo - ' + file.repo + '/' + file.path); }
+function paintOrganizer() {
+  const q = ($('#fileSearch').value || '').trim().toLowerCase();
+  const matches = organizerFiles.filter(f => !q || (archivePathFor(f) + ' ' + f.repo).toLowerCase().includes(q));
+  const pages = Math.max(1, Math.ceil(matches.length / organizerPageSize));
+  organizerPage = Math.min(organizerPage, pages - 1);
+  const start = organizerPage * organizerPageSize;
+  const visible = matches.slice(start, start + organizerPageSize);
+  $('#organizerCount').textContent = fmtNum(organizerFiles.length) + ' files';
+  $('#filePageInfo').textContent = matches.length
+    ? 'Showing ' + fmtNum(start + 1) + '–' + fmtNum(Math.min(start + visible.length, matches.length)) + ' of ' + fmtNum(matches.length) + (q ? ' matches' : '')
+    : (organizerFiles.length ? 'No files match this filter.' : 'No files collected yet.');
+  $('#filePrev').disabled = organizerPage === 0;
+  $('#fileNext').disabled = organizerPage >= pages - 1;
+  $('#fileTree').innerHTML = visible.length ? visible.map(f =>
+    '<label class="file-row" role="listitem"><input type="checkbox" data-file-seq="' + f.seq + '" ' + (selectedFileSeqs.has(f.seq) ? 'checked' : '') + '>' +
+    '<span><span class="file-path">' + esc(archivePathFor(f)) + '</span><span class="file-meta">' + esc(f.repo) + ' · ' + fmtBytes(f.size) + '</span></span></label>'
+  ).join('') : '<div class="hint" style="padding:18px;text-align:center">' + (organizerFiles.length ? 'No files match your search.' : 'Your collected files will appear here.') + '</div>';
+  $('#organizerSelection').textContent = selectedFileSeqs.size
+    ? fmtNum(selectedFileSeqs.size) + ' file' + (selectedFileSeqs.size === 1 ? '' : 's') + ' selected.'
+    : 'Select files below to organize them.';
+  $('#moveSelectedFiles').disabled = !selectedFileSeqs.size || packing;
+  $('#selectVisibleFiles').disabled = !visible.length || packing;
+  $('#clearFileSelection').disabled = !selectedFileSeqs.size || packing;
+}
+async function refreshOrganizer() {
+  organizerFiles = await DISK.getArchiveFiles();
+  organizerFiles.sort((a, b) => archivePathFor(a).localeCompare(archivePathFor(b)) || a.seq - b.seq);
+  const validSeqs = new Set(organizerFiles.map(f => f.seq));
+  Array.from(selectedFileSeqs).forEach(seq => { if (!validSeqs.has(seq)) selectedFileSeqs.delete(seq); });
+  paintOrganizer();
+}
+function safeFolderPath(value) {
+  const raw = String(value || '').trim().replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
+  if (!raw) return '';
+  const parts = raw.split('/').map(s => s.trim());
+  if (parts.some(s => !s || s === '.' || s === '..' || /[\u0000-\u001f]/.test(s))) throw new Error('Use a normal folder path without . or .. segments.');
+  return parts.join('/');
+}
+async function moveSelectedArchiveFiles() {
+  if (!selectedFileSeqs.size || packing) return;
+  let folder;
+  try { folder = safeFolderPath($('#targetFolder').value); }
+  catch (e) { toast(e.message, 'bad'); $('#targetFolder').focus(); return; }
+  const moving = organizerFiles.filter(f => selectedFileSeqs.has(f.seq));
+  const movingSeqs = new Set(moving.map(f => f.seq));
+  const reserved = new Set(organizerFiles.filter(f => !movingSeqs.has(f.seq)).map(archivePathFor));
+  const updates = moving.map(f => {
+    const original = archivePathFor(f).split('/').pop();
+    const name = original || 'file';
+    const dot = name.lastIndexOf('.');
+    const stem = dot > 0 ? name.slice(0, dot) : name;
+    const ext = dot > 0 ? name.slice(dot) : '';
+    let candidate = (folder ? folder + '/' : '') + name;
+    let suffix = 2;
+    while (reserved.has(candidate)) candidate = (folder ? folder + '/' : '') + stem + '-' + suffix++ + ext;
+    reserved.add(candidate);
+    return { seq: f.seq, archivePath: candidate };
+  });
+  await DISK.moveArchiveFiles(updates);
+  selectedFileSeqs.clear();
+  $('#targetFolder').value = '';
+  await refreshOrganizer();
+  toast('Moved ' + fmtNum(updates.length) + ' file' + (updates.length === 1 ? '' : 's') + (folder ? ' to ' + folder : ' to archive root'), 'ok');
+}
 async function paintDownload() {
+  await refreshOrganizer();
   const meta = await DISK.getPartsMeta(S.partMB, false);
   cachedPartsMeta = meta;
   const mp = Number(S.maxParts) || 0;
@@ -2578,7 +2716,7 @@ function makePartIterator(partMeta) {
   return async (emit) => {
     const seenNames = new Map();
     await DISK.forEachInRange(partMeta.startSeq, partMeta.endSeq, true, async (meta) => {
-      let name = 'Repo - ' + meta.repo + '/' + meta.path;
+      let name = meta.archivePath || ('Repo - ' + meta.repo + '/' + meta.path);
       if (seenNames.has(name)) {
         const n = seenNames.get(name) + 1;
         seenNames.set(name, n);
@@ -2802,7 +2940,7 @@ async function doExportFolder() {
     const startSeq = meta.parts[0].startSeq, endSeq = meta.parts[meta.parts.length - 1].endSeq;
     await DISK.forEachInRange(startSeq, endSeq, true, async (f) => {
       if (cancelPack) throw new Error('Cancelled');
-      const parts = ('Repo - ' + f.repo + '/' + f.path).split('/').filter(Boolean);
+      const parts = (f.archivePath || ('Repo - ' + f.repo + '/' + f.path)).split('/').filter(Boolean);
       const fileName = parts.pop();
       const folder = await ensureSubdir(parts);
       const fh = await folder.getFileHandle(fileName, { create: true });
@@ -3015,6 +3153,21 @@ function wire() {
   /* step 8 */
   $('#btnStreamDisk').addEventListener('click', doStreamToDisk);
   $('#btnDownload').addEventListener('click', doDownload);
+  $('#fileSearch').addEventListener('input', () => { organizerPage = 0; paintOrganizer(); });
+  $('#fileTree').addEventListener('change', (e) => {
+    const checkbox = e.target.closest('[data-file-seq]'); if (!checkbox) return;
+    const seq = Number(checkbox.dataset.fileSeq);
+    if (checkbox.checked) selectedFileSeqs.add(seq); else selectedFileSeqs.delete(seq);
+    paintOrganizer();
+  });
+  $('#selectVisibleFiles').addEventListener('click', () => {
+    $$('#fileTree [data-file-seq]').forEach(box => selectedFileSeqs.add(Number(box.dataset.fileSeq)));
+    paintOrganizer();
+  });
+  $('#clearFileSelection').addEventListener('click', () => { selectedFileSeqs.clear(); paintOrganizer(); });
+  $('#moveSelectedFiles').addEventListener('click', moveSelectedArchiveFiles);
+  $('#filePrev').addEventListener('click', () => { organizerPage = Math.max(0, organizerPage - 1); paintOrganizer(); });
+  $('#fileNext').addEventListener('click', () => { organizerPage++; paintOrganizer(); });
   $('#btnExportFolder').addEventListener('click', doExportFolder);
   $('#btnCancelPack').addEventListener('click', () => { cancelPack = true; $('#dlState').textContent = 'cancelling…'; });
 

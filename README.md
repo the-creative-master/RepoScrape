@@ -11,7 +11,7 @@ Open `index.html` to use the app. The interface guides you through an eight-step
 5. **Scrape Filters** — select file presets or custom extensions and set duplicate, asset, blank-file, folder, and file-size rules.
 6. **Find Repositories** — search GitHub and select repositories to scrape.
 7. **The Magic** — inspect live collection statistics and begin or stop scraping.
-8. **Download** — review the collected files and download the generated archive.
+8. **Download** — review the complete collected file structure, move selected files into folders, then download the generated archive.
 
 ## Key Features
 
@@ -25,6 +25,7 @@ Open `index.html` to use the app. The interface guides you through an eight-step
 - Raw-file size limits and configurable archive parts
 - ZIP, 7z, TAR, ZIP.GZ, 7Z.GZ, and TAR.GZ output options
 - Browser-only collection and local ZIP/TAR/7z packing
+- Download-stage archive organizer to inspect all collected file paths and move selected files into custom folders before packing
 - Offline demo repositories for trying the interface without network access
 - Persistent browser settings using `localStorage`
 - Optional Screen Wake Lock to keep scraping tabs active
@@ -54,7 +55,7 @@ You can also open `index.html` directly in a browser. A local HTTP server is rec
 5. Select file types and scrape filters.
 6. Search GitHub and select repositories.
 7. Start scraping and inspect the live log and statistics.
-8. Download the resulting archive.
+8. On the Download step, search and review the collected paths, select files, and move them into a folder if desired; then download the resulting archive.
 
 ## Search Examples
 
